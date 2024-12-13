@@ -204,10 +204,7 @@ local addButtonDialog = {
 local deleteConfirmDialog = {
     isVisible = false,
     isOpen = { true },
-    windowToDelete = nil,
-    buttonToDelete = nil,
-    deleteType = nil, 
-    parentWindow = nil
+    windowToDelete = nil
 }
 
 local helpDialog = {
@@ -1236,7 +1233,6 @@ local function renderAddButtonDialog()
                         imgui.SameLine()
                         if imgui.Button("Delete Window##EditWindow") then
                             deleteConfirmDialog.isVisible = true
-                            deleteConfirmDialog.deleteType = "window"
                             deleteConfirmDialog.windowToDelete = addButtonDialog.selectedWindow
                         end
                         imgui.SameLine()
@@ -1590,10 +1586,10 @@ local function renderAddButtonDialog()
                     end
                     imgui.SameLine()
                     if imgui.Button("Delete Button##DeleteCommand") then
-                        deleteConfirmDialog.isVisible = true
-                        deleteConfirmDialog.deleteType = "button"
-                        deleteConfirmDialog.buttonToDelete = selectedCommand
-                        deleteConfirmDialog.parentWindow = selectedWindow
+                        table.remove(selectedWindow.commands, addButtonDialog.selectedCommandIndex)
+                        addButtonDialog.selectedCommandIndex = nil
+                        settings.save()
+                        print(chat.header(addon.name):append(chat.message('Deleted button.')))
                     end
                 end
             else
@@ -1642,12 +1638,7 @@ local function renderDeleteConfirmDialog()
 
     local isOpen = deleteConfirmDialog.isOpen
     if imgui.Begin("Confirm Delete", isOpen, bit.bor(ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoMove)) then
-        -- Set message based on type
-        if deleteConfirmDialog.deleteType == "window" then
-            imgui.Text(string.format('Delete window: "%s"?', deleteConfirmDialog.windowToDelete))
-        else
-            imgui.Text(string.format('Delete button: "%s"?', deleteConfirmDialog.buttonToDelete.text))
-        end
+        imgui.Text(string.format('Are you sure you want to delete window "%s"?', deleteConfirmDialog.windowToDelete))
 
         -- Center the buttons
         local buttonWidth = 120
@@ -1656,22 +1647,12 @@ local function renderDeleteConfirmDialog()
         imgui.SetCursorPosX((windowSize[1] - totalWidth) / 2)
 
         if imgui.Button("Yes##DeleteConfirm", { buttonWidth, 0 }) then
-            if deleteConfirmDialog.deleteType == "window" then
-                -- Delete window
-                local userSettings = altCommand and altCommand.settings or settings
-                userSettings.windows[deleteConfirmDialog.windowToDelete] = nil
-                settings.save()
-                print(chat.header(addon.name):append(chat.message('Deleted window "' .. deleteConfirmDialog.windowToDelete .. '".')))
-                deleteConfirmDialog.isVisible = false
-                editWindowDialog.isVisible = false
-            else
-                -- Delete button
-                table.remove(deleteConfirmDialog.parentWindow.commands, addButtonDialog.selectedCommandIndex)
-                addButtonDialog.selectedCommandIndex = nil
-                settings.save()
-                print(chat.header(addon.name):append(chat.message('Deleted button "' .. deleteConfirmDialog.buttonToDelete.text .. '".')))
-                deleteConfirmDialog.isVisible = false
-            end
+            local userSettings = altCommand and altCommand.settings or settings
+            userSettings.windows[deleteConfirmDialog.windowToDelete] = nil
+            settings.save()
+            print(chat.header(addon.name):append(chat.message('Deleted window "' .. deleteConfirmDialog.windowToDelete .. '".')))
+            deleteConfirmDialog.isVisible = false
+            editWindowDialog.isVisible = false
         end
         imgui.SameLine()
         if imgui.Button("No##DeleteCancel", { buttonWidth, 0 }) then
@@ -1680,9 +1661,11 @@ local function renderDeleteConfirmDialog()
     end
     imgui.End()
 
+    -- Check if the window was closed via the 'X' button
     if not isOpen[1] then
         deleteConfirmDialog.isVisible = false
-        deleteConfirmDialog.isOpen[1] = true
+        -- Reset isOpen for the next time the window is opened
+        isOpen[1] = true
     end
 end
 
