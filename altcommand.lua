@@ -947,7 +947,6 @@ local function renderAddButtonDialog()
 
         imgui.BeginChild("LeftSide", {380, -imgui.GetFrameHeightWithSpacing()}, true)
         if imgui.BeginTabBar("AddButton_NewWindow_Tabs") then
-            -- New Window first
             if imgui.BeginTabItem("Create Window") then
                 currentTab = "New Window"
 
@@ -1032,8 +1031,7 @@ local function renderAddButtonDialog()
             if imgui.BeginTabItem("Add/Edit Buttons") then
                 currentTab = "Add Button"
             
-                -- Define left pane width
-                local left_pane_width = 400  -- Adjust as needed
+                local left_pane_width = 400 
             
                 -- Begin left pane
                 imgui.BeginChild("LeftPane", { left_pane_width, 0 }, false)
@@ -1181,7 +1179,7 @@ local function renderAddButtonDialog()
                             end
                         end
             
-                        -- Window Edit Section (Moved to left pane)
+                        -- Window Edit Section
                         imgui.Spacing()
                         imgui.Separator()
                         imgui.Spacing()
@@ -1282,7 +1280,6 @@ local function renderAddButtonDialog()
                     imgui.Text("Click a button above to select it. Then you can edit or delete it below.")
                     imgui.Spacing()
             
-                    -- Replace WindowEdit section with Edit Selected Button Section
                     -- Begin Edit Selected Button Section
                     if addButtonDialog.selectedCommandIndex then
                         if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
@@ -1413,7 +1410,6 @@ local function renderAddButtonDialog()
                     end
                 
                     if selectedCommand then
-                        -- **Add Move Left and Move Right Buttons Here**
                         imgui.Spacing()
                         imgui.Separator()
                         imgui.Spacing()
@@ -1434,8 +1430,6 @@ local function renderAddButtonDialog()
                                     print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" left.')))
                                 end
                             else
-                                -- To keep alignment, add an invisible button or spacing
-
                                 imgui.TextDisabled("Move Left")
                             end
 
@@ -1450,8 +1444,6 @@ local function renderAddButtonDialog()
                                     print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" right.')))
                                 end
                             else
-                                -- To keep alignment, add an invisible button or spacing
-
                                 imgui.TextDisabled("Move Right")
                             end
                         end                                            
@@ -1501,7 +1493,6 @@ local function renderAddButtonDialog()
         imgui.BeginChild("WindowEdit", {0, 0}, true)
         local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
         if selectedWindow and currentTab == "Add Button" then
-            -- Replace with Edit Selected Button Section
             if addButtonDialog.selectedCommandIndex then
                 if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
                     loadSelectedCommandFields(selectedWindow)
@@ -1631,7 +1622,6 @@ end
 local function renderDeleteConfirmDialog()
     if not deleteConfirmDialog.isVisible then return end
 
-    -- Center the confirmation dialog
     local viewportSize = { imgui.GetIO().DisplaySize.x, imgui.GetIO().DisplaySize.y }
     local windowSize = { 300, 100 }
     imgui.SetNextWindowPos({
@@ -1649,7 +1639,6 @@ local function renderDeleteConfirmDialog()
             imgui.Text(string.format('Delete button: "%s"?', deleteConfirmDialog.buttonToDelete.text))
         end
 
-        -- Center the buttons
         local buttonWidth = 120
         local spacing = 10
         local totalWidth = (buttonWidth * 2) + spacing
