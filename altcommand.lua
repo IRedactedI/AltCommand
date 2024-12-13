@@ -847,9 +847,10 @@ local function renderPreviewInline(windowConfig)
         ImGuiWindowFlags_NoTitleBar,
         ImGuiWindowFlags_NoResize,
         ImGuiWindowFlags_NoScrollbar,
-        ImGuiWindowFlags_NoScrollWithMouse
+        ImGuiWindowFlags_NoScrollWithMouse,
+        ImGuiWindowFlags_AlwaysUseWindowPadding
     )
-    imgui.BeginChild("ExistingWindowPreview", {windowWidth, totalHeight}, true, ImGuiWindowFlags_AlwaysUseWindowPadding)
+    imgui.BeginChild("ExistingWindowPreview", {windowWidth, totalHeight}, true, windowFlags)
 
     local buttonColor = windowConfig.buttonColor or {0.2, 0.4, 0.8, 1.0}
     imgui.PushStyleColor(ImGuiCol_Button, buttonColor)
