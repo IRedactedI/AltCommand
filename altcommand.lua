@@ -932,7 +932,7 @@ local function renderAddButtonDialog()
     ensureNewWindowDefaults()
 
     imgui.SetNextWindowSize({1400, 600}, ImGuiCond_Always)
-    if imgui.Begin("Alt Command v0.1", isOpen, ImGuiWindowFlags_NoResize) then
+    if imgui.Begin("Alt Command v1.0", isOpen, ImGuiWindowFlags_NoResize) then
         local userSettings = altCommand and altCommand.settings or settings
         local windowNames, windowIndexMap = getWindowNamesFromSettings(userSettings)
 
@@ -1028,13 +1028,20 @@ local function renderAddButtonDialog()
 
             if imgui.BeginTabItem("Add/Edit Buttons") then
                 currentTab = "Add Button"
-
+            
+                -- Define left pane width
+                local left_pane_width = 400  -- Adjust as needed
+            
+                -- Begin left pane
+                imgui.BeginChild("LeftPane", { left_pane_width, 0 }, false)
+            
+                -- Window selection
                 if #windowNames > 0 then
                     local currentSelection = addButtonDialog.selectedWindow
                     if type(currentSelection) == "table" then
                         currentSelection = currentSelection[1] or ""
                     end
-
+            
                     if imgui.BeginCombo("##WindowSelect", currentSelection) then
                         for i, name in ipairs(windowNames) do
                             local isSelected = (currentSelection == name)
@@ -1044,8 +1051,6 @@ local function renderAddButtonDialog()
                                     addButtonDialog.selectedWindow = name
                                     addButtonDialog.selectedWindowIndex = { i }
                                     cacheWindowSettings(name, userSettings)
-
-                                    -- Reset selectedCommandIndex when a new window is selected
                                     addButtonDialog.selectedCommandIndex = nil
                                     addButtonDialog.lastSelectedCommandIndex = nil
                                 end
@@ -1054,10 +1059,10 @@ local function renderAddButtonDialog()
                         end
                         imgui.EndCombo()
                     end
-
+            
                     local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
                     if selectedWindow then
-                        
+                        -- Add Button Options
                         imgui.Text("Command Type:")
                         if imgui.RadioButton("Direct Command", addButtonDialog.commandType[1] == "isDirect") then
                             addButtonDialog.commandType[1] = "isDirect"
@@ -1066,7 +1071,6 @@ local function renderAddButtonDialog()
                         if imgui.RadioButton("Toggle On/Off", addButtonDialog.commandType[1] == "isToggle") then
                             addButtonDialog.commandType[1] = "isToggle"
                         end
-
                         if imgui.RadioButton("Command Series", addButtonDialog.commandType[1] == "isSeries") then
                             addButtonDialog.commandType[1] = "isSeries"
                         end
@@ -1074,11 +1078,11 @@ local function renderAddButtonDialog()
                         if imgui.RadioButton("Window Toggle", addButtonDialog.commandType[1] == "isWindow") then
                             addButtonDialog.commandType[1] = "isWindow"
                         end
-                    
+            
                         imgui.Text("Button Name:")
                         imgui.InputText("##commandName", addButtonDialog.commandName, 64)
-                        
-                        -- Show relevant fields based on type                        
+            
+                        -- Show fields based on command type
                         if addButtonDialog.commandType[1] == "isDirect" then
                             imgui.Text("Command Text:")
                             imgui.InputText("##commandText", addButtonDialog.commandText, 256)
@@ -1091,47 +1095,39 @@ local function renderAddButtonDialog()
                             imgui.Text("Delay between commands (seconds):")
                             imgui.InputFloat("##seriesDelay", addButtonDialog.seriesDelay, 0.1, 1.0)
                             imgui.Text("Command Series:")
-                            
-                            -- Track if we need a new input
+            
                             local needNewInput = true
-                            -- Track non-empty inputs for final string
                             local nonEmptyCommands = {}
-                            
-                            -- Render each command input
+            
                             for i, cmd in ipairs(addButtonDialog.seriesCommandInputs) do
                                 local label = string.format("Command %d##cmd%d", i, i)
                                 if imgui.InputText(label, cmd, 256) then
-                                    -- If this input is not empty and it's the last one, add a new empty input
                                     if cmd[1] ~= "" and i == #addButtonDialog.seriesCommandInputs then
-                                        table.insert(addButtonDialog.seriesCommandInputs, {""})
+                                        table.insert(addButtonDialog.seriesCommandInputs, { "" })
                                     end
                                 end
-                                
-                                -- Collect non-empty commands
                                 if cmd[1] ~= "" then
                                     table.insert(nonEmptyCommands, cmd[1])
                                     needNewInput = false
                                 end
                             end
-                            
-                            -- Remove empty inputs except last one
+            
                             for i = #addButtonDialog.seriesCommandInputs - 1, 1, -1 do
                                 if addButtonDialog.seriesCommandInputs[i][1] == "" then
                                     table.remove(addButtonDialog.seriesCommandInputs, i)
                                 end
                             end
-                            
-                            -- Ensure at least one input exists
+            
                             if #addButtonDialog.seriesCommandInputs == 0 then
-                                addButtonDialog.seriesCommandInputs = { {""} }
+                                addButtonDialog.seriesCommandInputs = { { "" } }
                             end
-                            
-                            -- Update series commands string
+            
                             addButtonDialog.seriesCommands[1] = table.concat(nonEmptyCommands, ",")
                         elseif addButtonDialog.commandType[1] == "isWindow" then
                             imgui.Text("Window Name:")
                             imgui.InputText("##windowToggleName", addButtonDialog.windowToggleName, 64)
-                        end    
+                        end
+            
                         if selectedWindow.type == "imgbutton" then
                             imgui.Text("Texture Path:")
                             if imgui.InputText("##texturePath", addButtonDialog.texturePath, 256) then
@@ -1148,8 +1144,8 @@ local function renderAddButtonDialog()
                                 end
                             end
                         end
+            
                         if imgui.Button("Add Button##ConfirmAdd") then
-                            -- Button click handling
                             if addButtonDialog.commandName[1] == "" then
                                 print(chat.header(addon.name):append(chat.error("Please enter a name for the new button.")))
                             else
@@ -1162,7 +1158,7 @@ local function renderAddButtonDialog()
                                         imagePathToSave = addButtonDialog.texturePath[1]
                                     end
                                 end
-                
+            
                                 local newCommand = {
                                     text = addButtonDialog.commandName[1],
                                     commandType = addButtonDialog.commandType[1],
@@ -1175,16 +1171,168 @@ local function renderAddButtonDialog()
                                     is_on = false,
                                     image = imagePathToSave
                                 }
-                
+            
                                 table.insert(selectedWindow.commands, newCommand)
                                 settings.save()
                                 print(chat.header(addon.name):append(chat.message("New button added to window '" .. addButtonDialog.selectedWindow .. "'.")))
                             end
                         end
-                        
-                    end
-                end
+            
+                        -- Window Edit Section (Moved to left pane)
+                        imgui.Spacing()
+                        imgui.Separator()
+                        imgui.Spacing()
 
+                        imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })            
+                        imgui.Text("Window Settings For:")
+                        imgui.PopStyleColor()
+                        imgui.SameLine()
+                        imgui.Text(addButtonDialog.selectedWindow)
+                        imgui.Spacing()
+                        
+                        imgui.Text("Window Color:")
+                        imgui.ColorEdit4("##editWindowColor", selectedWindow.windowColor)
+            
+                        imgui.Text("Button Color:")
+                        imgui.ColorEdit4("##editButtonColor", selectedWindow.buttonColor)
+            
+                        imgui.Text("Text Color:")
+                        imgui.ColorEdit4("##editTextColor", selectedWindow.textColor)
+            
+                        imgui.Text("Max Buttons Per Row:")
+                        imgui.InputInt("##editMaxButtonsPerRow", selectedWindow.maxButtonsPerRow)
+                        if selectedWindow.maxButtonsPerRow[1] < 1 then
+                            selectedWindow.maxButtonsPerRow[1] = 1
+                        end
+            
+                        imgui.Text("Button Spacing:")
+                        imgui.InputInt("##editButtonSpacing", selectedWindow.buttonSpacing)
+            
+                        if selectedWindow.type == "normal" then
+                            imgui.Text("Button Width:")
+                            imgui.InputInt("##editButtonWidth", selectedWindow.buttonWidth)
+                            imgui.Text("Button Height:")
+                            imgui.InputInt("##editButtonHeight", selectedWindow.buttonHeight)
+                        elseif selectedWindow.type == "imgbutton" then
+                            selectedWindow.imageButtonWidth = selectedWindow.imageButtonWidth or { 40 }
+                            selectedWindow.imageButtonHeight = selectedWindow.imageButtonHeight or { 40 }
+            
+                            imgui.Text("Image Button Width:")
+                            imgui.InputInt("##editImageButtonWidth", selectedWindow.imageButtonWidth)
+                            imgui.Text("Image Button Height:")
+                            imgui.InputInt("##editImageButtonHeight", selectedWindow.imageButtonHeight)
+                        end
+            
+                        imgui.Spacing()
+            
+                        if imgui.Button("Save Changes##EditWindow") then
+                            settings.save()
+                            cacheWindowSettings(addButtonDialog.selectedWindow, userSettings)
+                            print(chat.header(addon.name):append(chat.message('Updated window "' .. addButtonDialog.selectedWindow .. '".')))
+                        end
+                        imgui.SameLine()
+                        if imgui.Button("Delete Window##EditWindow") then
+                            deleteConfirmDialog.isVisible = true
+                            deleteConfirmDialog.windowToDelete = addButtonDialog.selectedWindow
+                        end
+                        imgui.SameLine()
+                        if imgui.Button("Cancel##EditWindow") then
+                            revertWindowSettings(addButtonDialog.selectedWindow, userSettings)
+                            print(chat.header(addon.name):append(chat.message('Reverted changes to window "' .. addButtonDialog.selectedWindow .. '".')))
+                        end
+                    end
+                else
+                    imgui.Text("No windows available. Please create a window first.")
+                end
+            
+                imgui.EndChild()  -- End left pane
+            
+                -- Begin right pane
+                imgui.SameLine()
+                imgui.BeginChild("RightPane", { 0, 0 }, false)
+            
+                local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
+                if selectedWindow then
+                    -- Inline preview
+                    local inlineWindow = {
+                        commands = T{},
+                        windowColor = selectedWindow.windowColor,
+                        buttonColor = selectedWindow.buttonColor,
+                        textColor = selectedWindow.textColor,
+                        type = selectedWindow.type,
+                        maxButtonsPerRow = selectedWindow.maxButtonsPerRow,
+                        buttonSpacing = selectedWindow.buttonSpacing,
+                        buttonWidth = selectedWindow.buttonWidth,
+                        buttonHeight = selectedWindow.buttonHeight,
+                        imageButtonWidth = selectedWindow.imageButtonWidth,
+                        imageButtonHeight = selectedWindow.imageButtonHeight
+                    }
+            
+                    for _, cmd in ipairs(selectedWindow.commands) do
+                        table.insert(inlineWindow.commands, cmd)
+                    end
+            
+                    renderPreviewInline(inlineWindow)
+            
+                    imgui.Spacing()
+                    imgui.Text("Click a button above to select it. Then you can edit or delete it below.")
+                    imgui.Spacing()
+            
+                    -- Replace WindowEdit section with Edit Selected Button Section
+                    -- Begin Edit Selected Button Section
+                    if addButtonDialog.selectedCommandIndex then
+                        if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
+                            loadSelectedCommandFields(selectedWindow)
+                            addButtonDialog.lastSelectedCommandIndex = addButtonDialog.selectedCommandIndex
+                        end
+            
+                        local selectedCommand = selectedWindow.commands[addButtonDialog.selectedCommandIndex]
+                        if selectedCommand then
+                            imgui.Spacing()
+                            imgui.Separator()
+                            imgui.Spacing()
+            
+                            -- Movement buttons
+                            local idx = addButtonDialog.selectedCommandIndex
+                            local canMoveLeft = idx > 1
+                            local canMoveRight = idx < #selectedWindow.commands
+            
+                            if canMoveLeft then
+                                if imgui.Button("Move Left") then
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx - 1] = selectedWindow.commands[idx - 1], selectedWindow.commands[idx]
+                                    addButtonDialog.selectedCommandIndex = idx - 1
+                                    settings.save()
+                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" left.')))
+                                end
+                            else
+                                imgui.TextDisabled("Move Left")
+                            end
+            
+                            imgui.SameLine()
+                            if canMoveRight then
+                                if imgui.Button("Move Right") then
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx + 1] = selectedWindow.commands[idx + 1], selectedWindow.commands[idx]
+                                    addButtonDialog.selectedCommandIndex = idx + 1
+                                    settings.save()
+                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" right.')))
+                                end
+                            else
+                                imgui.TextDisabled("Move Right")
+                            end
+            
+                            imgui.Spacing()
+                            imgui.Separator()
+                            imgui.Spacing()
+                        end
+                    end
+                    -- End Edit Selected Button Section
+            
+                else
+                    imgui.Text("No window selected.")
+                end
+            
+                imgui.EndChild()  -- End right pane
+            
                 imgui.EndTabItem()
             end
 
@@ -1204,7 +1352,9 @@ local function renderAddButtonDialog()
         imgui.BeginChild("WindowPreview", {0, previewHeight}, true)
         local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
         if selectedWindow and currentTab == "Add Button" then
+            imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })            
             imgui.Text("Preview:")
+            imgui.PopStyleColor()
             imgui.Spacing()
 
             local inlineWindow = {
@@ -1237,7 +1387,7 @@ local function renderAddButtonDialog()
             renderPreviewInline(inlineWindow)
 
             imgui.Spacing()
-            imgui.Text("Hint: Click a button above to select it. Then you can edit or delete it below.")
+            imgui.Text("Click a button above to select it. Then you can edit or delete it below.")
             imgui.Spacing()
 
             if addButtonDialog.selectedCommandIndex then
@@ -1259,98 +1409,56 @@ local function renderAddButtonDialog()
                     end
                 
                     if selectedCommand then
-                        imgui.Text("Edit Selected Command:")
-                        imgui.Text("Command Type:")
-                        if imgui.RadioButton("Direct Command##editType", editCommandType[1] == "isDirect") then
-                            editCommandType[1] = "isDirect"
-                        end
-                        imgui.SameLine()
-                        if imgui.RadioButton("Toggle On/Off##editType", editCommandType[1] == "isToggle") then
-                            editCommandType[1] = "isToggle"
-                        end
-                        if imgui.RadioButton("Command Series##editType", editCommandType[1] == "isSeries") then
-                            editCommandType[1] = "isSeries"
-                        end
-                        imgui.SameLine()
-                        if imgui.RadioButton("Window Toggle##editType", editCommandType[1] == "isWindow") then
-                            editCommandType[1] = "isWindow"
-                        end
-                
-                        imgui.Text("Button Name:")
-                        imgui.InputText("##editCommandName", editCommandName, 64)
-                
-                        -- Show relevant fields based on command type
-                        if editCommandType[1] == "isDirect" then
-                            imgui.Text("Command Text:")
-                            imgui.InputText("##editCommandText", editCommandText, 256)
-                        elseif editCommandType[1] == "isToggle" then
-                            imgui.Text("Base Command:")
-                            imgui.InputText("##editToggleCommand", editToggleCommand, 256)
-                            imgui.Text("Toggle Words:")
-                            imgui.InputText("##editToggleWords", editToggleWords, 64)
-                        elseif editCommandType[1] == "isSeries" then
-                            imgui.Text("Delay between commands (seconds):")
-                            imgui.InputFloat("##editSeriesDelay", editSeriesDelay, 0.1, 1.0)
-                            imgui.Text("Command Series:")
-                            
-                            -- Track non-empty inputs for final string
-                            local nonEmptyCommands = {}
-                            
-                            -- Render each command input
-                            for i, cmd in ipairs(editSeriesCommandInputs) do
-                                local label = string.format("Command %d##edit_cmd%d", i, i)
-                                if imgui.InputText(label, cmd, 256) then
-                                    -- If this input is not empty and it's the last one, add a new empty input
-                                    if cmd[1] ~= "" and i == #editSeriesCommandInputs then
-                                        table.insert(editSeriesCommandInputs, {""})
-                                    end
+                        -- **Add Move Left and Move Right Buttons Here**
+                        imgui.Spacing()
+                        imgui.Separator()
+                        imgui.Spacing()
+
+                        -- Determine if "Move Left" and "Move Right" should be displayed
+                        local canMoveLeft = idx > 1
+                        local canMoveRight = idx < #selectedWindow.commands
+
+                        if canMoveLeft or canMoveRight then
+                            imgui.Text("Rearrange Button Order:")
+
+                            if canMoveLeft then
+                                if imgui.Button("Move Left") then
+                                    -- Swap with the previous command
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx - 1] = selectedWindow.commands[idx - 1], selectedWindow.commands[idx]
+                                    addButtonDialog.selectedCommandIndex = idx - 1  -- Update the selected index
+                                    settings.save()
+                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" left.')))
                                 end
-                                
-                                -- Collect non-empty commands
-                                if cmd[1] ~= "" then
-                                    table.insert(nonEmptyCommands, cmd[1])
+                            else
+                                -- To keep alignment, add an invisible button or spacing
+
+                                imgui.TextDisabled("Move Left")
+                            end
+
+                            imgui.SameLine()
+
+                            if canMoveRight then
+                                if imgui.Button("Move Right") then
+                                -- Swap with the next command
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx + 1] = selectedWindow.commands[idx + 1], selectedWindow.commands[idx]
+                                    addButtonDialog.selectedCommandIndex = idx + 1  -- Update the selected index
+                                    settings.save()
+                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" right.')))
                                 end
+                            else
+                                -- To keep alignment, add an invisible button or spacing
+
+                                imgui.TextDisabled("Move Right")
                             end
-                            
-                            -- Remove empty inputs except last one
-                            for i = #editSeriesCommandInputs - 1, 1, -1 do
-                                if editSeriesCommandInputs[i][1] == "" then
-                                    table.remove(editSeriesCommandInputs, i)
-                                end
-                            end
-                            
-                            -- Ensure at least one input exists
-                            if #editSeriesCommandInputs == 0 then
-                                editSeriesCommandInputs = { {""} }
-                            end
-                        elseif editCommandType[1] == "isWindow" then
-                            imgui.Text("Window Name:")
-                            imgui.InputText("##editWindowToggleName", editWindowToggleName, 64)
-                        end
-                
-                        if selectedWindow.type == "imgbutton" then
-                            imgui.Text("Texture Path:")
-                            imgui.InputText("##editTexturePath", editTexturePath, 256)
-                        end
-                
-                        if imgui.Button("Save Changes##EditCommand") then
-                            saveSelectedCommandChanges(selectedWindow)
-                            print(chat.header(addon.name):append(chat.message('Selected command updated.')))
-                        end
-                        imgui.SameLine()
-                        if imgui.Button("Delete Selected Button##EditCommand") then
-                            table.remove(selectedWindow.commands, idx)
-                            settings.save()
-                            addButtonDialog.selectedCommandIndex = nil
-                            addButtonDialog.lastSelectedCommandIndex = nil
-                            print(chat.header(addon.name):append(chat.message('Selected command deleted.')))
-                        end
+                        end                                            
                     end
                 end
             end
 
         elseif currentTab == "New Window" then
+            imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })            
             imgui.Text("Preview:")
+            imgui.PopStyleColor()
             imgui.Spacing()
 
             local previewWindow = {
@@ -1380,7 +1488,7 @@ local function renderAddButtonDialog()
 
             renderPreviewInline(previewWindow)
             imgui.Spacing()
-            imgui.Text("Hint: This is a sample preview of a potential new window layout.\n\nThe extra padding that shows up at the bottom of the above preview window when there is more than\none row will not show up on the actual windows created.\n\nI just haven't figured out what's causing it in this one preview window.")
+            imgui.Text("This is a sample preview of a potential new window layout.\n\nThe extra padding that shows up at the bottom of the above preview window when there is more than\none row will not show up on the actual windows created.\n\nI just haven't figured out what's causing it in this one preview window.")
         end
         imgui.EndChild()
 
@@ -1389,61 +1497,103 @@ local function renderAddButtonDialog()
         imgui.BeginChild("WindowEdit", {0, 0}, true)
         local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
         if selectedWindow and currentTab == "Add Button" then
-            imgui.Text("Edit Window: " .. addButtonDialog.selectedWindow)
-            
-            imgui.Text("Window Color:")
-            imgui.ColorEdit4("##editWindowColor", selectedWindow.windowColor)
-
-            imgui.Text("Button Color:")
-            imgui.ColorEdit4("##editButtonColor", selectedWindow.buttonColor)
-
-            imgui.Text("Text Color:")
-            imgui.ColorEdit4("##editTextColor", selectedWindow.textColor)
+            -- Replace with Edit Selected Button Section
+            if addButtonDialog.selectedCommandIndex then
+                if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
+                    loadSelectedCommandFields(selectedWindow)
+                    addButtonDialog.lastSelectedCommandIndex = addButtonDialog.selectedCommandIndex
+                end
         
-            imgui.Text("Max Buttons Per Row:")
-            imgui.InputInt("##editMaxButtonsPerRow", selectedWindow.maxButtonsPerRow)
-            if selectedWindow.maxButtonsPerRow[1] < 1 then
-                selectedWindow.maxButtonsPerRow[1] = 1
-            end
-
-            imgui.Text("Button Spacing:")
-            imgui.InputInt("##editButtonSpacing", selectedWindow.buttonSpacing)
-
-            if selectedWindow.type == "normal" then
-                imgui.Text("Button Width:")
-                imgui.InputInt("##editButtonWidth", selectedWindow.buttonWidth)
-
-                imgui.Text("Button Height:")
-                imgui.InputInt("##editButtonHeight", selectedWindow.buttonHeight)
-            elseif selectedWindow.type == "imgbutton" then
-                if not (selectedWindow.imageButtonWidth and selectedWindow.imageButtonWidth[1]) then
-                    selectedWindow.imageButtonWidth = {40}
+                local selectedCommand = selectedWindow.commands[addButtonDialog.selectedCommandIndex]
+                if selectedCommand then
+        
+                    imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
+                    imgui.Text(string.format('Currently Editing: "%s"', selectedCommand.text))
+                    imgui.PopStyleColor()
+                    imgui.Separator()
+                    imgui.Spacing()
+        
+                    -- Command Type
+                    imgui.Text("Command Type:")
+                    if imgui.RadioButton("Direct Command##editType", editCommandType[1] == "isDirect") then
+                        editCommandType[1] = "isDirect"
+                    end
+                    imgui.SameLine()
+                    if imgui.RadioButton("Toggle On/Off##editType", editCommandType[1] == "isToggle") then
+                        editCommandType[1] = "isToggle"
+                    end
+                    if imgui.RadioButton("Command Series##editType", editCommandType[1] == "isSeries") then
+                        editCommandType[1] = "isSeries"
+                    end
+                    imgui.SameLine()
+                    if imgui.RadioButton("Window Toggle##editType", editCommandType[1] == "isWindow") then
+                        editCommandType[1] = "isWindow"
+                    end
+        
+                    -- Button Name
+                    imgui.Text("Button Name:")
+                    imgui.InputText("##editCommandName", editCommandName, 64)
+        
+                    -- Fields based on command type
+                    if editCommandType[1] == "isDirect" then
+                        imgui.Text("Command Text:")
+                        imgui.InputText("##editCommandText", editCommandText, 256)
+                    elseif editCommandType[1] == "isToggle" then
+                        imgui.Text("Toggle Command:")
+                        imgui.InputText("##editToggleCommand", editToggleCommand, 256)
+                        imgui.Text("Toggle Words: (Ex: on, off)")
+                        imgui.InputText("##editToggleWords", editToggleWords, 64)
+                    elseif editCommandType[1] == "isSeries" then
+                        imgui.Text("Delay between commands (seconds):")
+                        imgui.InputFloat("##editSeriesDelay", editSeriesDelay, 0.1, 1.0)
+                        imgui.Text("Command Series:")
+        
+                        -- Edit Series Commands
+                        for i, cmd in ipairs(editSeriesCommandInputs) do
+                            local label = string.format("Command %d##editCmd%d", i, i)
+                            if imgui.InputText(label, cmd, 256) then
+                                if cmd[1] ~= "" and i == #editSeriesCommandInputs then
+                                    table.insert(editSeriesCommandInputs, {""})
+                                end
+                            end
+                        end
+        
+                        -- Clean up empty inputs
+                        for i = #editSeriesCommandInputs - 1, 1, -1 do
+                            if editSeriesCommandInputs[i][1] == "" then
+                                table.remove(editSeriesCommandInputs, i)
+                            end
+                        end
+        
+                        if #editSeriesCommandInputs == 0 then
+                            editSeriesCommandInputs = { {""} }
+                        end
+                    elseif editCommandType[1] == "isWindow" then
+                        imgui.Text("Window Name:")
+                        imgui.InputText("##editWindowToggleName", editWindowToggleName, 64)
+                    end
+        
+                    -- Texture path for image buttons
+                    if selectedWindow.type == "imgbutton" then
+                        imgui.Text("Texture Path:")
+                        imgui.InputText("##editTexturePath", editTexturePath, 256)
+                    end
+        
+                    -- Action buttons
+                    if imgui.Button("Save Changes##EditCommand") then
+                        saveSelectedCommandChanges(selectedWindow)
+                        print(chat.header(addon.name):append(chat.message('Updated button "' .. editCommandName[1] .. '".')))
+                    end
+                    imgui.SameLine()
+                    if imgui.Button("Delete Button##DeleteCommand") then
+                        table.remove(selectedWindow.commands, addButtonDialog.selectedCommandIndex)
+                        addButtonDialog.selectedCommandIndex = nil
+                        settings.save()
+                        print(chat.header(addon.name):append(chat.message('Deleted button.')))
+                    end
                 end
-                if not (selectedWindow.imageButtonHeight and selectedWindow.imageButtonHeight[1]) then
-                    selectedWindow.imageButtonHeight = {40}
-                end
-
-                imgui.Text("Image Button Width:")
-                imgui.InputInt("##editImageButtonWidth", selectedWindow.imageButtonWidth)
-
-                imgui.Text("Image Button Height:")
-                imgui.InputInt("##editImageButtonHeight", selectedWindow.imageButtonHeight)
-            end
-
-            if imgui.Button("Save Changes##EditWindow") then
-                settings.save()
-                cacheWindowSettings(addButtonDialog.selectedWindow, userSettings)
-                print(chat.header(addon.name):append(chat.message('Updated window "' .. addButtonDialog.selectedWindow .. '".')))
-            end
-            imgui.SameLine()
-            if imgui.Button("Delete Window##EditWindow") then
-                deleteConfirmDialog.isVisible = true
-                deleteConfirmDialog.windowToDelete = addButtonDialog.selectedWindow
-            end
-            imgui.SameLine()
-            if imgui.Button("Cancel##EditWindowCancel") then
-                revertWindowSettings(addButtonDialog.selectedWindow, userSettings)
-                print(chat.header(addon.name):append(chat.message('Reverted changes to window "' .. addButtonDialog.selectedWindow .. '".')))
+            else
+                imgui.Text("No button selected for editing.")
             end
         else
             imgui.Text("No window selected or currently in 'New Window' tab.")
@@ -1559,12 +1709,14 @@ Use the options on the left-hand side to set up the basic structure for a new wi
 - Space between buttons
 - Button size
 These settings can all be edited after window creation.
-
-!! All new windows must have a unique name.
-!! All windows can be repositioned by holding shift to drag them around.
-!! Window positions save automatically after dragging.
+    ]])
+    imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.2, 0.2, 1.0 })
+    imgui.TextWrapped([[
+!! All new windows must have a unique name.                              !!
+!! All windows can be repositioned by holding shift to drag them around. !!
+!! Window positions save automatically after dragging.                   !!
 ]])
-
+        imgui.PopStyleColor()
         -- Render the Add/Edit Buttons Tab Section
         imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
         imgui.TextWrapped("\nAdd/Edit Buttons Tab:")
@@ -1572,15 +1724,24 @@ These settings can all be edited after window creation.
         imgui.TextWrapped([[
 Use the left-hand pane to add new buttons. Start by selecting a window from the dropdown menu. Remember:
 - Normal buttons cannot be placed on image button windows, and vice versa. All new buttons must have a unique name.
+]])
 
-There are four types of buttons:
+imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
+imgui.TextWrapped("\nThere are four types of buttons:")
+imgui.PopStyleColor()
 
-1. Direct Command:  
+imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+imgui.TextWrapped("\n1. Direct Command:")
+imgui.PopStyleColor()
+imgui.TextWrapped([[
    Used for single-line commands.
    - Example:
      - /ma "Fire" <t>.
-
-2. Toggle On/Off:  
+]])
+imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+imgui.TextWrapped("\n2. Toggle On/Off:")
+imgui.PopStyleColor()
+imgui.TextWrapped([[
    For commands that toggle with 2 words such as on / off. The default setting for toggle commands is off.
    - Example:
      - Command Name: Follow
@@ -1588,16 +1749,22 @@ There are four types of buttons:
      - Toggle Words: on, off (comma-separated)
      - Clicking the button will execute /ms followme on and change the button display to Follow Off.
      - Clicking again will execute /ms followme off and change the button display back to Follow.
-
-3. Command Series:  
+]])
+imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+imgui.TextWrapped("\n3. Command Series:")
+imgui.PopStyleColor()
+imgui.TextWrapped([[
    Functions like a macro with configurable delays (minimum 0.1 seconds). Each command added generates a new line.
    - Example:  
      - Command 1: /equipset 1  
      - Command 2: /do something  
      - Command 3: /equipset 2  
      - Command 4: (Leave blank to finish)  
-
-4. Window Toggle:  
+]])
+imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+imgui.TextWrapped("\n4. Window Toggle:")
+imgui.PopStyleColor()
+imgui.TextWrapped([[
    Toggles visibility for a window with the same name.
    - Example: 
      - Create a window called "CorShots" and load it with all of the Quick Draw elements (/ja "Light Shot" <t>, etc.) 
@@ -1609,12 +1776,17 @@ There are four types of buttons:
         imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
         imgui.TextWrapped("\nPreview and Editing:")
         imgui.PopStyleColor()
+        imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+        imgui.TextWrapped("\nPreview:")
+        imgui.PopStyleColor()
         imgui.TextWrapped([[
-Preview Pane:
 - Displays how the button will appear before creation. You can click buttons in the preview to edit or delete them.
 - Important: Click "Save Changes" for edits to take effect, deletions will take effect immediately after the confirmation dialog.
-
-Edit Window Pane:
+]])
+        imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+        imgui.TextWrapped("\nWindow Settings:")
+        imgui.PopStyleColor()
+        imgui.TextWrapped([[
 - Alter the current window's settings (e.g., background or button colors). Use "Delete Window" to remove the window entirely.
 - Important: Click "Save Changes" for edits to take effect, "Cancel" to revert changes, and "Delete Window" to delete the window 
   and all of it's contents entirely.
