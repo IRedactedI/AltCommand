@@ -1,15 +1,15 @@
-addon.name = 'AltCommand';
-addon.author = 'Redacted';
-addon.version = '1.0';
-addon.description = 'Send commands via highly customizable buttons.';
+addon.name = "AltCommand"
+addon.author = "Redacted"
+addon.version = "1.0"
+addon.description = "Send commands via highly customizable buttons."
 
-require('common')
-local chat      = require('chat');
-local imgui     = require('imgui');
-local bit       = require('bit');
-local settings  = require('settings');
-local images    = require('images');
-local ffi       = require('ffi');
+require("common")
+local chat = require("chat")
+local imgui = require("imgui")
+local bit = require("bit")
+local settings = require("settings")
+local images = require("images")
+local ffi = require("ffi")
 
 local textureCache = {}
 local timers = {}
@@ -20,39 +20,45 @@ local editCommandText = {""}
 local editToggleCommand = {""}
 local editToggleWords = {"on,off"}
 local editSeriesCommands = {""}
-local editSeriesCommandInputs = { {""} }
+local editSeriesCommandInputs = {{""}}
 local editSeriesDelay = {1.0}
 local editWindowToggleName = {""}
 local editTexturePath = {""}
 local currentTab = "Add Button"
-local flags = { no_move = ImGuiWindowFlags_NoMove, no_title = ImGuiWindowFlags_NoTitleBar, no_resize = ImGuiWindowFlags_NoResize, no_scroll = ImGuiWindowFlags_NoScrollbar, no_scroll_mouse = ImGuiWindowFlags_NoScrollWithMouse,}
+local flags = {
+    no_move = ImGuiWindowFlags_NoMove,
+    no_title = ImGuiWindowFlags_NoTitleBar,
+    no_resize = ImGuiWindowFlags_NoResize,
+    no_scroll = ImGuiWindowFlags_NoScrollbar,
+    no_scroll_mouse = ImGuiWindowFlags_NoScrollWithMouse
+}
 local isUIVisible = true
-local current_menu = ''
+local current_menu = ""
 local defines = {
     menus = {
-        auction_menu = 'auc[%d]',
-        map = 'map',
-        region_map = 'cnqframe',
+        auction_menu = "auc[%d]",
+        map = "map",
+        region_map = "cnqframe"
     }
 }
 
-local fallbackTexturePath = addon.path .. '/resources/misc/fallback.png'
+local fallbackTexturePath = addon.path .. "/resources/misc/fallback.png"
 local fallbackTexture = images.loadTextureFromFile(fallbackTexturePath)
 if fallbackTexture then
-    textureCache['misc/fallback.png'] = fallbackTexture
+    textureCache["misc/fallback.png"] = fallbackTexture
 else
-    print('Failed to load fallback texture from: ' .. fallbackTexturePath)
+    print("Failed to load fallback texture from: " .. fallbackTexturePath)
 end
 
 for i = 1, 4 do
-    local previewPath = addon.path .. '/resources/misc/' .. i .. '.png'
+    local previewPath = addon.path .. "/resources/misc/" .. i .. ".png"
     local texture = images.loadTextureFromFile(previewPath)
     if texture then
-        textureCache['misc/' .. i .. '.png'] = texture
+        textureCache["misc/" .. i .. ".png"] = texture
     else
-        print('Failed to load preview texture ' .. i .. ' from: ' .. previewPath)
+        print("Failed to load preview texture " .. i .. " from: " .. previewPath)
         -- Fall back to default texture if loading fails
-        textureCache['misc/' .. i .. '.png'] = fallbackTexture
+        textureCache["misc/" .. i .. ".png"] = fallbackTexture
     end
 end
 
@@ -66,75 +72,101 @@ local function fileExists(filePath)
     end
 end
 
-local pGameMenu = ashita.memory.find('FFXiMain.dll', 0, '8B480C85C974??8B510885D274??3B05', 16, 0)
+local pGameMenu = ashita.memory.find("FFXiMain.dll", 0, "8B480C85C974??8B510885D274??3B05", 16, 0)
 local function get_game_menu_name()
     local menu_pointer = ashita.memory.read_uint32(pGameMenu)
-    if menu_pointer == 0 then return '' end
+    if menu_pointer == 0 then
+        return ""
+    end
     local menu_val = ashita.memory.read_uint32(menu_pointer)
-    if menu_val == 0 then return '' end
+    if menu_val == 0 then
+        return ""
+    end
     local menu_header = ashita.memory.read_uint32(menu_val + 4)
-    if menu_header == 0 then return '' end
+    if menu_header == 0 then
+        return ""
+    end
     local menu_name = ashita.memory.read_string(menu_header + 0x46, 16)
-    return menu_name:gsub('\x00', ''):gsub('menu[%s]+', ''):trim()
+    return menu_name:gsub("\x00", ""):gsub("menu[%s]+", ""):trim()
 end
 
-local pInterfaceHidden = ashita.memory.find('FFXiMain.dll', 0, '8B4424046A016A0050B9????????E8????????F6D81BC040C3', 0, 0)
+local pInterfaceHidden =
+    ashita.memory.find("FFXiMain.dll", 0, "8B4424046A016A0050B9????????E8????????F6D81BC040C3", 0, 0)
 local function is_game_interface_hidden()
-    if pInterfaceHidden == 0 then return false end
+    if pInterfaceHidden == 0 then
+        return false
+    end
     local ptr = ashita.memory.read_uint32(pInterfaceHidden + 10)
-    if ptr == 0 then return false end
+    if ptr == 0 then
+        return false
+    end
     return ashita.memory.read_uint8(ptr + 0xB4) == 1
 end
 
-local pEventSystem = ashita.memory.find('FFXiMain.dll', 0, 'A0????????84C0741AA1????????85C0741166A1????????663B05????????0F94C0C3', 0, 0)
+local pEventSystem =
+    ashita.memory.find(
+    "FFXiMain.dll",
+    0,
+    "A0????????84C0741AA1????????85C0741166A1????????663B05????????0F94C0C3",
+    0,
+    0
+)
 local function is_event_system_active()
-    if pEventSystem == 0 then return false end
+    if pEventSystem == 0 then
+        return false
+    end
     local ptr = ashita.memory.read_uint32(pEventSystem + 1)
-    if ptr == 0 then return false end
+    if ptr == 0 then
+        return false
+    end
     return ashita.memory.read_uint8(ptr) == 1
 end
 
-local pChatExpanded = ashita.memory.find('FFXiMain.dll', 0, '83EC??B9????????E8????????0FBF4C24??84C0', 0x04, 0)
+local pChatExpanded = ashita.memory.find("FFXiMain.dll", 0, "83EC??B9????????E8????????0FBF4C24??84C0", 0x04, 0)
 local function is_chat_expanded()
     local ptr = ashita.memory.read_uint32(pChatExpanded)
-    if ptr == 0 then return false end
+    if ptr == 0 then
+        return false
+    end
     return ashita.memory.read_uint8(ptr + 0xF1) ~= 0
 end
 
 function string.trim(s)
-    return s:match('^%s*(.-)%s*$')
+    return s:match("^%s*(.-)%s*$")
 end
 
 local defaultWindow = {
-    commands = T{
-        T{ 
+    commands = T {
+        T {
             text = "Click Me",
             commandType = "isDirect",
-            command = "/altc help" 
-        },
+            command = "/altc help"
+        }
     },
-    windowPos = T{ x = 100, y = 100 },
+    windowPos = T {x = 100, y = 100},
     isDraggable = true,
     isVisible = true,
-    windowColor = { 0.016, 0.055, 0.051, 0.49 },
-    buttonColor = { 0.2, 0.376, 0.8, 1.0 },
-    textColor = { 1, 1, 1, 1 },            
+    windowColor = {0.016, 0.055, 0.051, 0.49},
+    buttonColor = {0.2, 0.376, 0.8, 1.0},
+    textColor = {1, 1, 1, 1},
     type = "normal",
-    maxButtonsPerRow = { 1 },
-    buttonSpacing = { 5 },
-    buttonWidth = { 105 },
-    buttonHeight = { 22 },
-    imageButtonWidth = { 40 },
-    imageButtonHeight = { 40 }
+    maxButtonsPerRow = {1},
+    buttonSpacing = {5},
+    buttonWidth = {105},
+    buttonHeight = {22},
+    imageButtonWidth = {40},
+    imageButtonHeight = {40}
 }
 
-local default_settings = T{
-    windows = T{}
-};
+local default_settings =
+    T {
+    windows = T {}
+}
 
-local altCommand = T{
-    settings = settings.load(default_settings),
-};
+local altCommand =
+    T {
+    settings = settings.load(default_settings)
+}
 
 local newWindowDialog = {
     windowName = {""},
@@ -148,71 +180,71 @@ local newWindowDialog = {
         buttonWidth = {105},
         buttonHeight = {22},
         imageButtonWidth = {40},
-        imageButtonHeight = {40},
+        imageButtonHeight = {40}
     }
 }
 
 local editWindowDialog = {
     isVisible = false,
-    isOpen = { true },
+    isOpen = {true},
     windowName = "",
-    windowColor = { 0.078, 0.890, 0.804, 0.49 },
-    buttonColor = { 0.2, 0.4, 0.8, 1.0 },
+    windowColor = {0.078, 0.890, 0.804, 0.49},
+    buttonColor = {0.2, 0.4, 0.8, 1.0},
     textColor = {1.0, 1.0, 1.0, 1.0},
-    maxButtonsPerRow = { 4 },
-    buttonSpacing = { 10 },
-    buttonWidth = { 105 },
-    buttonHeight = { 22 },
-    imageButtonWidth = { 40 },
-    imageButtonHeight = { 40 },
+    maxButtonsPerRow = {4},
+    buttonSpacing = {10},
+    buttonWidth = {105},
+    buttonHeight = {22},
+    imageButtonWidth = {40},
+    imageButtonHeight = {40},
     originalWindowName = "",
     originalSettings = {}
 }
 
 local addButtonDialog = {
     isVisible = false,
-    isOpen = { true },
-    selectedWindowIndex = { 1 },
-    selectedWindow = { "" },    
-    commandType = { "isDirect" }, 
-    toggleCommand = { "" },
-    toggleWords = { "" },      
-    seriesDelay = { 1.0 },
-    seriesCommands = { {""} },
-    seriesCommandInputs = { {""} },
-    windowToggleName = { "" },
-    commandName = { "" },
-    commandText = { "" },
-    texturePath = { "" },
+    isOpen = {true},
+    selectedWindowIndex = {1},
+    selectedWindow = {""},
+    commandType = {"isDirect"},
+    toggleCommand = {""},
+    toggleWords = {""},
+    seriesDelay = {1.0},
+    seriesCommands = {{""}},
+    seriesCommandInputs = {{""}},
+    windowToggleName = {""},
+    commandName = {""},
+    commandText = {""},
+    texturePath = {""},
     previewTexture = nil,
-    previewButtonColor = { 0.2, 0.4, 0.8, 1.0 },
+    previewButtonColor = {0.2, 0.4, 0.8, 1.0},
     fallbackTexture = nil,
     inlineCommandDisplay = {
-        commands = T{},
-        windowColor = { 0.078, 0.890, 0.804, 0.49 },
-        buttonColor = { 0.2, 0.4, 0.8, 1.0 },
+        commands = T {},
+        windowColor = {0.078, 0.890, 0.804, 0.49},
+        buttonColor = {0.2, 0.4, 0.8, 1.0},
         type = "normal",
-        maxButtonsPerRow = { 4 },
-        buttonSpacing = { 10 },
-        buttonWidth = { 105 },
-        buttonHeight = { 22 },
-        imageButtonWidth = { 40 },
-        imageButtonHeight = { 40 }
+        maxButtonsPerRow = {4},
+        buttonSpacing = {10},
+        buttonWidth = {105},
+        buttonHeight = {22},
+        imageButtonWidth = {40},
+        imageButtonHeight = {40}
     }
 }
 
 local deleteConfirmDialog = {
     isVisible = false,
-    isOpen = { true },
+    isOpen = {true},
     windowToDelete = nil,
     buttonToDelete = nil,
-    deleteType = nil, 
+    deleteType = nil,
     parentWindow = nil
 }
 
 local helpDialog = {
     isVisible = false,
-    isOpen = { true }
+    isOpen = {true}
 }
 
 addButtonDialog.selectedCommandIndex = nil
@@ -236,7 +268,7 @@ local function getWindowNamesFromSettings(settings)
     if type(settings) == "table" then
         if type(settings.windows) == "table" then
             windows = settings.windows
-        elseif type(settings["windows"]) == "table" then 
+        elseif type(settings["windows"]) == "table" then
             windows = settings["windows"]
         end
     end
@@ -246,12 +278,14 @@ local function getWindowNamesFromSettings(settings)
         -- Handle both regular tables and T{} tables
         if type(windows.it) == "function" then
             -- It's a T{} table
-            windows:each(function(data, name)
-                if type(name) == "string" and name ~= "" then
-                    table.insert(windowNames, name)
-                    windowIndexMap[name] = #windowNames
+            windows:each(
+                function(data, name)
+                    if type(name) == "string" and name ~= "" then
+                        table.insert(windowNames, name)
+                        windowIndexMap[name] = #windowNames
+                    end
                 end
-            end)
+            )
         else
             -- Regular Lua table
             for name, data in pairs(windows) do
@@ -274,15 +308,15 @@ local function cacheWindowSettings(windowName, userSettings)
     if window then
         -- Deep copy all values to avoid reference issues
         cachedSettings[windowName] = {
-            windowColor = { unpack(window.windowColor or { 0.078, 0.890, 0.804, 0.49 }) },
-            buttonColor = { unpack(window.buttonColor or { 0.2, 0.4, 0.8, 1.0 }) },
-            textColor = { unpack(window.textColor or { 1.0, 1.0, 1.0, 1.0 }) },
-            maxButtonsPerRow = { window.maxButtonsPerRow and window.maxButtonsPerRow[1] or 4 },
-            buttonSpacing = { window.buttonSpacing and window.buttonSpacing[1] or 10 },
-            buttonWidth = { window.buttonWidth and window.buttonWidth[1] or 105 },
-            buttonHeight = { window.buttonHeight and window.buttonHeight[1] or 22 },
-            imageButtonWidth = { window.imageButtonWidth and window.imageButtonWidth[1] or 40 },
-            imageButtonHeight = { window.imageButtonHeight and window.imageButtonHeight[1] or 40 },
+            windowColor = {unpack(window.windowColor or {0.078, 0.890, 0.804, 0.49})},
+            buttonColor = {unpack(window.buttonColor or {0.2, 0.4, 0.8, 1.0})},
+            textColor = {unpack(window.textColor or {1.0, 1.0, 1.0, 1.0})},
+            maxButtonsPerRow = {window.maxButtonsPerRow and window.maxButtonsPerRow[1] or 4},
+            buttonSpacing = {window.buttonSpacing and window.buttonSpacing[1] or 10},
+            buttonWidth = {window.buttonWidth and window.buttonWidth[1] or 105},
+            buttonHeight = {window.buttonHeight and window.buttonHeight[1] or 22},
+            imageButtonWidth = {window.imageButtonWidth and window.imageButtonWidth[1] or 40},
+            imageButtonHeight = {window.imageButtonHeight and window.imageButtonHeight[1] or 40},
             windowType = window.type or "normal"
         }
     end
@@ -293,15 +327,15 @@ local function revertWindowSettings(windowName, userSettings)
     if cached and userSettings.windows[windowName] then
         local window = userSettings.windows[windowName]
         -- Deep copy all values back from cache
-        window.windowColor = { unpack(cached.windowColor) }
-        window.buttonColor = { unpack(cached.buttonColor) }
-        window.textColor = { unpack(cached.textColor) }
-        window.maxButtonsPerRow = { cached.maxButtonsPerRow[1] }
-        window.buttonSpacing = { cached.buttonSpacing[1] }
-        window.buttonWidth = { cached.buttonWidth[1] }
-        window.buttonHeight = { cached.buttonHeight[1] }
-        window.imageButtonWidth = { cached.imageButtonWidth[1] }
-        window.imageButtonHeight = { cached.imageButtonHeight[1] }
+        window.windowColor = {unpack(cached.windowColor)}
+        window.buttonColor = {unpack(cached.buttonColor)}
+        window.textColor = {unpack(cached.textColor)}
+        window.maxButtonsPerRow = {cached.maxButtonsPerRow[1]}
+        window.buttonSpacing = {cached.buttonSpacing[1]}
+        window.buttonWidth = {cached.buttonWidth[1]}
+        window.buttonHeight = {cached.buttonHeight[1]}
+        window.imageButtonWidth = {cached.imageButtonWidth[1]}
+        window.imageButtonHeight = {cached.imageButtonHeight[1]}
         window.type = cached.windowType
     end
 end
@@ -309,9 +343,9 @@ end
 local function initializeWindowDialog(dialogType, windowName)
     local userSettings = altCommand and altCommand.settings or settings
     local windowNames, _ = getWindowNamesFromSettings(userSettings)
-    
+
     if #windowNames == 0 then
-        print(chat.header(addon.name):append(chat.error('No windows found.')))
+        print(chat.header(addon.name):append(chat.error("No windows found.")))
         return false
     end
 
@@ -323,69 +357,67 @@ local function initializeWindowDialog(dialogType, windowName)
     end
 
     local window = altCommand.settings.windows[windowName]
-    
+
     -- New Window
     if dialogType == "new" then
         -- Initialize new window dialog
         newWindowDialog.isVisible = true
-        newWindowDialog.windowName = { "" }
-        newWindowDialog.windowColor = { 0.078, 0.890, 0.804, 0.49 }
-        newWindowDialog.buttonColor = { 0.2, 0.4, 0.8, 1.0 }
-        newWindowDialog.windowType = { "normal" }
+        newWindowDialog.windowName = {""}
+        newWindowDialog.windowColor = {0.078, 0.890, 0.804, 0.49}
+        newWindowDialog.buttonColor = {0.2, 0.4, 0.8, 1.0}
+        newWindowDialog.windowType = {"normal"}
         newWindowDialog.previewWindow = {
-            commands = T{},
-            windowPos = T{ x = 100, y = 100 },
+            commands = T {},
+            windowPos = T {x = 100, y = 100},
             isDraggable = false,
-            maxButtonsPerRow = { 4 },
-            buttonSpacing = { 5 },
-            buttonWidth = { 105 },
-            buttonHeight = { 22 },
-            imageButtonWidth = { 40 },
-            imageButtonHeight = { 40 }
+            maxButtonsPerRow = {4},
+            buttonSpacing = {5},
+            buttonWidth = {105},
+            buttonHeight = {22},
+            imageButtonWidth = {40},
+            imageButtonHeight = {40}
         }
 
         -- Cache preview texture if not already cached
-        local previewTexturePath = 'misc/preview.png'
+        local previewTexturePath = "misc/preview.png"
         if not textureCache[previewTexturePath] then
-            local fullTexturePath = addon.path .. '/resources/' .. previewTexturePath
+            local fullTexturePath = addon.path .. "/resources/" .. previewTexturePath
             if fileExists(fullTexturePath) then
                 local loadedTexture = images.loadTextureFromFile(fullTexturePath)
                 if loadedTexture then
                     textureCache[previewTexturePath] = loadedTexture
                 else
-                    print(chat.header(addon.name):append(chat.error('Failed to load preview texture.')))
+                    print(chat.header(addon.name):append(chat.error("Failed to load preview texture.")))
                 end
             end
         end
 
         return true
     end
-    
+
     -- Edit Window
     if dialogType == "edit" then
         -- Initialize edit dialog
         editWindowDialog.isVisible = true
         editWindowDialog.windowName = windowName
         editWindowDialog.originalWindowName = windowName
-        editWindowDialog.windowColor = window.windowColor or { 0.078, 0.890, 0.804, 0.49 }
-        editWindowDialog.buttonColor = window.buttonColor or { 0.2, 0.4, 0.8, 1.0 }
-        editWindowDialog.maxButtonsPerRow = window.maxButtonsPerRow or { 4 }
-        editWindowDialog.buttonSpacing = window.buttonSpacing or { 5 }
-        editWindowDialog.buttonWidth = window.buttonWidth or { 105 }
-        editWindowDialog.buttonHeight = window.buttonHeight or { 22 }
-        editWindowDialog.imageButtonWidth = window.imageButtonWidth or { 40 }
-        editWindowDialog.imageButtonHeight = window.imageButtonHeight or { 40 }
-        editWindowDialog.windowType = { window.type or "normal" }
-    
-    -- Add Button
+        editWindowDialog.windowColor = window.windowColor or {0.078, 0.890, 0.804, 0.49}
+        editWindowDialog.buttonColor = window.buttonColor or {0.2, 0.4, 0.8, 1.0}
+        editWindowDialog.maxButtonsPerRow = window.maxButtonsPerRow or {4}
+        editWindowDialog.buttonSpacing = window.buttonSpacing or {5}
+        editWindowDialog.buttonWidth = window.buttonWidth or {105}
+        editWindowDialog.buttonHeight = window.buttonHeight or {22}
+        editWindowDialog.imageButtonWidth = window.imageButtonWidth or {40}
+        editWindowDialog.imageButtonHeight = window.imageButtonHeight or {40}
+        editWindowDialog.windowType = {window.type or "normal"}
     elseif dialogType == "add" then
         -- Initialize add dialog
         addButtonDialog.isVisible = true
         addButtonDialog.selectedWindow = windowName
-        addButtonDialog.selectedWindowIndex = { 1 }
-        addButtonDialog.commandName = { "" }
-        addButtonDialog.commandText = { "" }
-        addButtonDialog.texturePath = { "" }
+        addButtonDialog.selectedWindowIndex = {1}
+        addButtonDialog.commandName = {""}
+        addButtonDialog.commandText = {""}
+        addButtonDialog.texturePath = {""}
         addButtonDialog.previewTexture = nil
     end
 
@@ -396,23 +428,25 @@ end
 
 local function loadSelectedCommandFields(selectedWindow)
     local idx = addButtonDialog.selectedCommandIndex
-    if not idx then return end
+    if not idx then
+        return
+    end
 
     local totalExisting = #selectedWindow.commands
     if idx <= totalExisting then
         local command = selectedWindow.commands[idx]
         -- Load command fields
-        editCommandName = { command.text or "" }
-        editCommandType = { command.commandType or "isDirect" }
-        editCommandText = { command.command or "" }
-        editToggleCommand = { command.toggleCommand or "" }
-        editToggleWords = { command.toggleWords or "on,off" }
-        editSeriesDelay = { command.seriesDelay or 1.0 }
-        editWindowToggleName = { command.windowToggleName or "" }
-        editTexturePath = { command.image or "" }
-        
+        editCommandName = {command.text or ""}
+        editCommandType = {command.commandType or "isDirect"}
+        editCommandText = {command.command or ""}
+        editToggleCommand = {command.toggleCommand or ""}
+        editToggleWords = {command.toggleWords or "on,off"}
+        editSeriesDelay = {command.seriesDelay or 1.0}
+        editWindowToggleName = {command.windowToggleName or ""}
+        editTexturePath = {command.image or ""}
+
         -- Handle series commands
-        editSeriesCommandInputs = { {""} }
+        editSeriesCommandInputs = {{""}}
         if command.seriesCommands then
             editSeriesCommandInputs = {}
             for cmd in command.seriesCommands:gmatch("[^,]+") do
@@ -426,7 +460,9 @@ end
 
 local function saveSelectedCommandChanges(selectedWindow)
     local idx = addButtonDialog.selectedCommandIndex
-    if not idx then return end
+    if not idx then
+        return
+    end
 
     local totalExisting = #selectedWindow.commands
     if idx <= totalExisting then
@@ -450,7 +486,7 @@ local function saveSelectedCommandChanges(selectedWindow)
             end
             command.seriesCommands = table.concat(nonEmptyCommands, ",")
             command.seriesDelay = editSeriesDelay[1]
-        else 
+        else
             command.seriesCommands = nil
             command.seriesDelay = nil
         end
@@ -465,8 +501,8 @@ local function ensureNewWindowDefaults()
     newWindowDialog.windowType = newWindowDialog.windowType or {"normal"}
     if not newWindowDialog.previewWindow then
         newWindowDialog.previewWindow = {
-            commands = T{},
-            windowPos = T{ x = 100, y = 100 },
+            commands = T {},
+            windowPos = T {x = 100, y = 100},
             isDraggable = false,
             isVisible = true,
             windowColor = {0.078, 0.890, 0.804, 0.49},
@@ -488,10 +524,16 @@ end
 
 local function ensureImageButtonDefaults()
     if newWindowDialog.windowType[1] == "imgbutton" then
-        if not (newWindowDialog.previewWindow.imageButtonWidth and type(newWindowDialog.previewWindow.imageButtonWidth[1]) == "number") then
+        if
+            not (newWindowDialog.previewWindow.imageButtonWidth and
+                type(newWindowDialog.previewWindow.imageButtonWidth[1]) == "number")
+         then
             newWindowDialog.previewWindow.imageButtonWidth = {40}
         end
-        if not (newWindowDialog.previewWindow.imageButtonHeight and type(newWindowDialog.previewWindow.imageButtonHeight[1]) == "number") then
+        if
+            not (newWindowDialog.previewWindow.imageButtonHeight and
+                type(newWindowDialog.previewWindow.imageButtonHeight[1]) == "number")
+         then
             newWindowDialog.previewWindow.imageButtonHeight = {40}
         end
     end
@@ -502,8 +544,10 @@ local function ensureNormalButtonDefaults()
     newWindowDialog.previewWindow.buttonHeight = newWindowDialog.previewWindow.buttonHeight or {22}
 
     -- Ensure values are valid numbers
-    newWindowDialog.previewWindow.buttonWidth[1] = math.max(1, tonumber(newWindowDialog.previewWindow.buttonWidth[1]) or 105)
-    newWindowDialog.previewWindow.buttonHeight[1] = math.max(1, tonumber(newWindowDialog.previewWindow.buttonHeight[1]) or 22)
+    newWindowDialog.previewWindow.buttonWidth[1] =
+        math.max(1, tonumber(newWindowDialog.previewWindow.buttonWidth[1]) or 105)
+    newWindowDialog.previewWindow.buttonHeight[1] =
+        math.max(1, tonumber(newWindowDialog.previewWindow.buttonHeight[1]) or 22)
 end
 
 local function renderWindow(window, windowName, isPreview)
@@ -511,14 +555,14 @@ local function renderWindow(window, windowName, isPreview)
     imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0)
     imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
     imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
-    
+
     -- Validate and wrap settings for ImGui compatibility
-    window.maxButtonsPerRow = window.maxButtonsPerRow or T{ 4 }
-    window.buttonSpacing = window.buttonSpacing or T{ 10 }
-    window.buttonWidth = window.buttonWidth or T{ 40 }
-    window.buttonHeight = window.buttonHeight or T{ 40 }
-    window.imageButtonWidth = window.imageButtonWidth or T{ 40 }  -- New setting
-    window.imageButtonHeight = window.imageButtonHeight or T{ 40 }  -- New setting
+    window.maxButtonsPerRow = window.maxButtonsPerRow or T {4}
+    window.buttonSpacing = window.buttonSpacing or T {10}
+    window.buttonWidth = window.buttonWidth or T {40}
+    window.buttonHeight = window.buttonHeight or T {40}
+    window.imageButtonWidth = window.imageButtonWidth or T {40}
+    window.imageButtonHeight = window.imageButtonHeight or T {40}
 
     -- Ensure values are valid numbers
     window.maxButtonsPerRow[1] = math.max(1, tonumber(window.maxButtonsPerRow[1]) or 4)
@@ -530,8 +574,8 @@ local function renderWindow(window, windowName, isPreview)
 
     local commands = window.commands
     local windowPos = window.windowPos
-    local windowColor = window.windowColor or { 0.078, 0.890, 0.804, 0.49 }
-    local buttonColor = window.buttonColor or { 0.2, 0.4, 0.8, 1.0 }
+    local windowColor = window.windowColor or {0.078, 0.890, 0.804, 0.49}
+    local buttonColor = window.buttonColor or {0.2, 0.4, 0.8, 1.0}
     local textColor = window.textColor or {1.0, 1.0, 1.0, 1.0}
     local maxButtonsPerRow = window.maxButtonsPerRow[1]
     local buttonSpacing = window.buttonSpacing[1]
@@ -548,35 +592,33 @@ local function renderWindow(window, windowName, isPreview)
     local effectiveButtonWidth = buttonWidth + (window.type == "imgbutton" and imagePaddingX or 0)
     local effectiveButtonHeight = buttonHeight + (window.type == "imgbutton" and imagePaddingY or 0)
 
-    local windowWidth = (effectiveButtonWidth * maxButtonsPerRow) + (buttonSpacing * (maxButtonsPerRow - 1)) + imgui.GetStyle().WindowPadding.x * 2
-    local totalHeight = (effectiveButtonHeight * totalRows) + (totalRows - 1) * buttonSpacing + imgui.GetStyle().WindowPadding.y * 2
+    local windowWidth =
+        (effectiveButtonWidth * maxButtonsPerRow) + (buttonSpacing * (maxButtonsPerRow - 1)) +
+        imgui.GetStyle().WindowPadding.x * 2
+    local totalHeight =
+        (effectiveButtonHeight * totalRows) + (totalRows - 1) * buttonSpacing + imgui.GetStyle().WindowPadding.y * 2
 
     -- Check if shift is held
     local io = imgui.GetIO()
     local shift_held = io.KeyShift
 
     -- Set window flags based on shift state
-    local windowFlags = bit.bor(
-        flags.no_title,
-        flags.no_resize,
-        flags.no_scroll,
-        flags.no_scroll_mouse
-    )
-    
+    local windowFlags = bit.bor(flags.no_title, flags.no_resize, flags.no_scroll, flags.no_scroll_mouse)
+
     -- Add no_move flag if shift is not held
     if not shift_held then
         windowFlags = bit.bor(windowFlags, flags.no_move)
     end
 
-    imgui.SetNextWindowSize({ windowWidth, totalHeight }, ImGuiCond_Always)
+    imgui.SetNextWindowSize({windowWidth, totalHeight}, ImGuiCond_Always)
 
     if window.isDraggable then
-        imgui.SetNextWindowPos({ windowPos.x, windowPos.y }, ImGuiCond_FirstUseEver)
+        imgui.SetNextWindowPos({windowPos.x, windowPos.y}, ImGuiCond_FirstUseEver)
     else
-        imgui.SetNextWindowPos({ windowPos.x, windowPos.y }, ImGuiCond_Always)
+        imgui.SetNextWindowPos({windowPos.x, windowPos.y}, ImGuiCond_Always)
     end
 
-    imgui.PushStyleColor(ImGuiCol_WindowBg, { windowColor[1], windowColor[2], windowColor[3], windowColor[4] })
+    imgui.PushStyleColor(ImGuiCol_WindowBg, {windowColor[1], windowColor[2], windowColor[3], windowColor[4]})
 
     if imgui.Begin(windowName, true, windowFlags) then
         imgui.PushStyleColor(ImGuiCol_Button, buttonColor)
@@ -587,7 +629,7 @@ local function renderWindow(window, windowName, isPreview)
             local buttonsInRow = math.min(maxButtonsPerRow, #commands - i + 1)
             local totalButtonWidth = (buttonsInRow * effectiveButtonWidth) + ((buttonsInRow - 1) * buttonSpacing)
             local paddingX = (windowWidth - totalButtonWidth) / 2
-        
+
             imgui.SetCursorPosX(paddingX)
 
             for j = 0, buttonsInRow - 1 do
@@ -606,7 +648,7 @@ local function renderWindow(window, windowName, isPreview)
                     local texture = textureCache[command.image]
                     if not texture then
                         -- Try loading the texture now
-                        local fullPath = addon.path .. '/resources/' .. command.image:gsub('\\', '/')
+                        local fullPath = addon.path .. "/resources/" .. command.image:gsub("\\", "/")
                         if fileExists(fullPath) then
                             local loadedTexture = images.loadTextureFromFile(fullPath)
                             if loadedTexture then
@@ -614,14 +656,14 @@ local function renderWindow(window, windowName, isPreview)
                                 texture = loadedTexture
                             else
                                 print("Failed to load texture from: " .. fullPath .. " - Using fallback.")
-                                command.image = 'misc/fallback.png'
-                                textureCache['misc/fallback.png'] = fallbackTexture
+                                command.image = "misc/fallback.png"
+                                textureCache["misc/fallback.png"] = fallbackTexture
                                 texture = fallbackTexture
                             end
                         else
                             print("Texture file not found: " .. fullPath .. " - Using fallback.")
-                            command.image = 'misc/fallback.png'
-                            textureCache['misc/fallback.png'] = fallbackTexture
+                            command.image = "misc/fallback.png"
+                            textureCache["misc/fallback.png"] = fallbackTexture
                             texture = fallbackTexture
                         end
                     end
@@ -629,7 +671,7 @@ local function renderWindow(window, windowName, isPreview)
                     if texture then
                         -- We have a valid texture or a fallback now
                         local textureID = tonumber(ffi.cast("uint32_t", texture))
-                        buttonClicked = imgui.ImageButton(textureID, { buttonWidth, buttonHeight })
+                        buttonClicked = imgui.ImageButton(textureID, {buttonWidth, buttonHeight})
 
                         -- Add tooltip to show the label and state
                         if imgui.IsItemHovered() then
@@ -638,13 +680,13 @@ local function renderWindow(window, windowName, isPreview)
                     else
                         -- If we still don't have a texture for some reason, show a disabled button
                         imgui.PushStyleVar(ImGuiStyleVar_Alpha, 0.5)
-                        imgui.Button(label, { buttonWidth, buttonHeight })
+                        imgui.Button(label, {buttonWidth, buttonHeight})
                         imgui.PopStyleVar()
                     end
                 else
                     -- Text button
                     imgui.PushStyleColor(ImGuiCol_Text, textColor)
-                    buttonClicked = imgui.Button(label, { buttonWidth, buttonHeight })
+                    buttonClicked = imgui.Button(label, {buttonWidth, buttonHeight})
                     imgui.PopStyleColor()
                 end
 
@@ -655,10 +697,12 @@ local function renderWindow(window, windowName, isPreview)
                         local toggle_command
                         if command.is_on then
                             -- Extract the "off" word from toggleWords (in case of custom toggles)
-                            toggle_command = (command.toggleCommand or "") .. " " .. (command.toggleWords:match(",%s*(.+)") or "off")
+                            toggle_command =
+                                (command.toggleCommand or "") .. " " .. (command.toggleWords:match(",%s*(.+)") or "off")
                         else
                             -- Extract the "on" word from toggleWords (in case of custom toggles)
-                            toggle_command = (command.toggleCommand or "") .. " " .. (command.toggleWords:match("([^,]+)") or "on")
+                            toggle_command =
+                                (command.toggleCommand or "") .. " " .. (command.toggleWords:match("([^,]+)") or "on")
                         end
 
                         -- Queue the toggle command
@@ -666,7 +710,6 @@ local function renderWindow(window, windowName, isPreview)
 
                         -- Toggle the is_on state
                         command.is_on = not command.is_on
-
                     elseif command.commandType == "isSeries" then
                         -- Series command
                         local cmdList = {}
@@ -679,14 +722,12 @@ local function renderWindow(window, windowName, isPreview)
                                 addTimer("series_" .. command.text, command.seriesDelay or 1.0, cmdList)
                             end
                         end
-
                     elseif command.commandType == "isWindow" then
                         -- Window toggle command
                         local targetWindow = altCommand.settings.windows[command.windowToggleName or command.text]
                         if targetWindow then
                             targetWindow.isVisible = not targetWindow.isVisible
                         end
-
                     elseif command.commandType == "isDirect" or command.commandType == nil then
                         -- Direct command
                         if command.command and command.command ~= "" then
@@ -721,12 +762,12 @@ local function renderCommandsInline(window)
     imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
     imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
 
-    window.maxButtonsPerRow = window.maxButtonsPerRow or T{ 4 }
-    window.buttonSpacing = window.buttonSpacing or T{ 10 }
-    window.buttonWidth = window.buttonWidth or T{ 40 }
-    window.buttonHeight = window.buttonHeight or T{ 40 }
-    window.imageButtonWidth = window.imageButtonWidth or T{ 40 }
-    window.imageButtonHeight = window.imageButtonHeight or T{ 40 }
+    window.maxButtonsPerRow = window.maxButtonsPerRow or T {4}
+    window.buttonSpacing = window.buttonSpacing or T {10}
+    window.buttonWidth = window.buttonWidth or T {40}
+    window.buttonHeight = window.buttonHeight or T {40}
+    window.imageButtonWidth = window.imageButtonWidth or T {40}
+    window.imageButtonHeight = window.imageButtonHeight or T {40}
 
     window.maxButtonsPerRow[1] = math.max(1, tonumber(window.maxButtonsPerRow[1]) or 4)
     window.buttonSpacing[1] = math.max(0, tonumber(window.buttonSpacing[1]) or 10)
@@ -736,7 +777,7 @@ local function renderCommandsInline(window)
     window.imageButtonHeight[1] = math.max(1, tonumber(window.imageButtonHeight[1]) or 40)
 
     local commands = window.commands
-    local buttonColor = window.buttonColor or { 0.2, 0.4, 0.8, 1.0 }
+    local buttonColor = window.buttonColor or {0.2, 0.4, 0.8, 1.0}
     local maxButtonsPerRow = window.maxButtonsPerRow[1]
     local buttonSpacing = window.buttonSpacing[1]
     local buttonWidth = (window.type == "imgbutton") and window.imageButtonWidth[1] or window.buttonWidth[1]
@@ -749,20 +790,20 @@ local function renderCommandsInline(window)
     local totalRows = math.ceil(#commands / maxButtonsPerRow)
     for i = 1, #commands, maxButtonsPerRow do
         local buttonsInRow = math.min(maxButtonsPerRow, #commands - i + 1)
-        
+
         for j = 0, buttonsInRow - 1 do
             local command = commands[i + j]
 
             if command.text == "Follow" then
                 local label = command.is_on and "Follow Off" or "Follow"
-                if imgui.Button(label, { buttonWidth, buttonHeight }) then
+                if imgui.Button(label, {buttonWidth, buttonHeight}) then
                     local toggle_command = command.is_on and command.command_off or command.command_on
                     AshitaCore:GetChatManager():QueueCommand(-1, toggle_command)
                     command.is_on = not command.is_on
                 end
             elseif command.text == "Attack" then
-                if imgui.Button(command.text, { buttonWidth, buttonHeight }) then
-                    local cmdList = { command.command, "/mss /follow [t]" }
+                if imgui.Button(command.text, {buttonWidth, buttonHeight}) then
+                    local cmdList = {command.command, "/mss /follow [t]"}
                     AshitaCore:GetChatManager():QueueCommand(-1, cmdList[1])
                     if #cmdList > 1 then
                         addTimer("attack_sequence", 1, cmdList)
@@ -773,7 +814,7 @@ local function renderCommandsInline(window)
                 local texture = textureCache[command.image]
                 if not texture then
                     -- Try loading it now
-                    local fullPath = addon.path .. '/resources/' .. command.image:gsub('\\', '/')
+                    local fullPath = addon.path .. "/resources/" .. command.image:gsub("\\", "/")
                     if fileExists(fullPath) then
                         local loadedTexture = images.loadTextureFromFile(fullPath)
                         if loadedTexture then
@@ -789,7 +830,7 @@ local function renderCommandsInline(window)
 
                 if texture then
                     local textureID = tonumber(ffi.cast("uint32_t", texture))
-                    if imgui.ImageButton(textureID, { buttonWidth, buttonHeight }) then
+                    if imgui.ImageButton(textureID, {buttonWidth, buttonHeight}) then
                         if altCommand.settings.windows[command.text] then
                             local w = altCommand.settings.windows[command.text]
                             w.isVisible = not w.isVisible
@@ -800,16 +841,16 @@ local function renderCommandsInline(window)
                 else
                     -- If we don't have a texture (and no fallback), just render a disabled button or text
                     imgui.PushStyleVar(ImGuiStyleVar_Alpha, 0.5)
-                    imgui.Button(command.text or "No Image", { buttonWidth, buttonHeight })
+                    imgui.Button(command.text or "No Image", {buttonWidth, buttonHeight})
                     imgui.PopStyleVar()
                 end
             elseif altCommand.settings.windows[command.text] then
-                if imgui.Button(command.text, { buttonWidth, buttonHeight }) then
+                if imgui.Button(command.text, {buttonWidth, buttonHeight}) then
                     local w = altCommand.settings.windows[command.text]
                     w.isVisible = not w.isVisible
                 end
             else
-                if imgui.Button(command.text, { buttonWidth, buttonHeight }) then
+                if imgui.Button(command.text, {buttonWidth, buttonHeight}) then
                     AshitaCore:GetChatManager():QueueCommand(-1, command.command)
                 end
             end
@@ -833,7 +874,7 @@ local function renderPreviewInline(windowConfig)
     local buttonSpacing = (windowConfig.buttonSpacing and windowConfig.buttonSpacing[1]) or 10
     local textColor = windowConfig.textColor or {1.0, 1.0, 1.0, 1.0}
     local buttonWidth, buttonHeight
-    
+
     if windowConfig.type == "imgbutton" then
         buttonWidth = windowConfig.imageButtonWidth[1] or 40
         buttonHeight = windowConfig.imageButtonHeight[1] or 40
@@ -851,17 +892,16 @@ local function renderPreviewInline(windowConfig)
     local totalRows = math.ceil(#commands / maxButtonsPerRow)
     local style = imgui.GetStyle()
 
-    local windowWidth = (effectiveButtonWidth * maxButtonsPerRow)
-        + (buttonSpacing * (maxButtonsPerRow - 1))
-        + style.WindowPadding.x * 2
-    local totalHeight = (effectiveButtonHeight * totalRows)
-        + ((totalRows - 1) * buttonSpacing)
-        + style.WindowPadding.y * 2
+    local windowWidth =
+        (effectiveButtonWidth * maxButtonsPerRow) + (buttonSpacing * (maxButtonsPerRow - 1)) + style.WindowPadding.x * 2
+    local totalHeight =
+        (effectiveButtonHeight * totalRows) + ((totalRows - 1) * buttonSpacing) + style.WindowPadding.y * 2
 
     local wc = windowConfig.windowColor or {0.078, 0.890, 0.804, 0.49}
     imgui.PushStyleColor(ImGuiCol_ChildBg, {wc[1], wc[2], wc[3], wc[4]})
 
-    local windowFlags = bit.bor(
+    local windowFlags =
+        bit.bor(
         ImGuiWindowFlags_NoTitleBar,
         ImGuiWindowFlags_NoResize,
         ImGuiWindowFlags_NoScrollbar,
@@ -892,7 +932,7 @@ local function renderPreviewInline(windowConfig)
                 local tex = textureCache[command.image]
                 if not tex then
                     -- Attempt to load once
-                    local fullPath = addon.path .. '/resources/' .. command.image:gsub('\\', '/')
+                    local fullPath = addon.path .. "/resources/" .. command.image:gsub("\\", "/")
                     if fileExists(fullPath) then
                         local loadedTexture = images.loadTextureFromFile(fullPath)
                         if loadedTexture then
@@ -961,7 +1001,7 @@ local function renderAddButtonDialog()
 
         if not addButtonDialog.selectedWindow and #windowNames > 0 then
             addButtonDialog.selectedWindow = windowNames[1]
-            addButtonDialog.selectedWindowIndex = { 1 }
+            addButtonDialog.selectedWindowIndex = {1}
             cacheWindowSettings(windowNames[1], userSettings)
         end
 
@@ -981,7 +1021,7 @@ local function renderAddButtonDialog()
 
                 imgui.Text("Text Color:")
                 imgui.ColorEdit4("##windowTextColor", newWindowDialog.textColor)
-                
+
                 imgui.Text("Window Type:")
                 if imgui.RadioButton("Normal", newWindowDialog.windowType[1] == "normal") then
                     newWindowDialog.windowType[1] = "normal"
@@ -1025,8 +1065,8 @@ local function renderAddButtonDialog()
                         print(chat.header(addon.name):append(chat.error("Please enter a name for the new window.")))
                     else
                         altCommand.settings.windows[newWindowDialog.windowName[1]] = {
-                            commands = T{},
-                            windowPos = T{ x = 100, y = 100 },
+                            commands = T {},
+                            windowPos = T {x = 100, y = 100},
                             isDraggable = true,
                             isVisible = true,
                             windowColor = newWindowDialog.windowColor,
@@ -1035,13 +1075,25 @@ local function renderAddButtonDialog()
                             type = newWindowDialog.windowType[1],
                             maxButtonsPerRow = newWindowDialog.previewWindow.maxButtonsPerRow,
                             buttonSpacing = newWindowDialog.previewWindow.buttonSpacing,
-                            buttonWidth = (newWindowDialog.windowType[1] == "normal") and newWindowDialog.previewWindow.buttonWidth or nil,
-                            buttonHeight = (newWindowDialog.windowType[1] == "normal") and newWindowDialog.previewWindow.buttonHeight or nil,
-                            imageButtonWidth = (newWindowDialog.windowType[1] == "imgbutton") and newWindowDialog.previewWindow.imageButtonWidth or nil,
-                            imageButtonHeight = (newWindowDialog.windowType[1] == "imgbutton") and newWindowDialog.previewWindow.imageButtonHeight or nil
+                            buttonWidth = (newWindowDialog.windowType[1] == "normal") and
+                                newWindowDialog.previewWindow.buttonWidth or
+                                nil,
+                            buttonHeight = (newWindowDialog.windowType[1] == "normal") and
+                                newWindowDialog.previewWindow.buttonHeight or
+                                nil,
+                            imageButtonWidth = (newWindowDialog.windowType[1] == "imgbutton") and
+                                newWindowDialog.previewWindow.imageButtonWidth or
+                                nil,
+                            imageButtonHeight = (newWindowDialog.windowType[1] == "imgbutton") and
+                                newWindowDialog.previewWindow.imageButtonHeight or
+                                nil
                         }
                         settings.save()
-                        print(chat.header(addon.name):append(chat.message("New window '" .. newWindowDialog.windowName[1] .. "' created.")))
+                        print(
+                            chat.header(addon.name):append(
+                                chat.message("New window '" .. newWindowDialog.windowName[1] .. "' created.")
+                            )
+                        )
                     end
                 end
 
@@ -1050,19 +1102,19 @@ local function renderAddButtonDialog()
 
             if imgui.BeginTabItem("Add/Edit Buttons") then
                 currentTab = "Add Button"
-            
-                local left_pane_width = 400 
-            
+
+                local left_pane_width = 400
+
                 -- Begin left pane
-                imgui.BeginChild("LeftPane", { left_pane_width, 0 }, false)
-            
+                imgui.BeginChild("LeftPane", {left_pane_width, 0}, false)
+
                 -- Window selection
                 if #windowNames > 0 then
                     local currentSelection = addButtonDialog.selectedWindow
                     if type(currentSelection) == "table" then
                         currentSelection = currentSelection[1] or ""
                     end
-            
+
                     if imgui.BeginCombo("##WindowSelect", currentSelection) then
                         for i, name in ipairs(windowNames) do
                             local isSelected = (currentSelection == name)
@@ -1070,17 +1122,19 @@ local function renderAddButtonDialog()
                                 if addButtonDialog.selectedWindow ~= name then
                                     revertWindowSettings(addButtonDialog.selectedWindow, userSettings)
                                     addButtonDialog.selectedWindow = name
-                                    addButtonDialog.selectedWindowIndex = { i }
+                                    addButtonDialog.selectedWindowIndex = {i}
                                     cacheWindowSettings(name, userSettings)
                                     addButtonDialog.selectedCommandIndex = nil
                                     addButtonDialog.lastSelectedCommandIndex = nil
                                 end
                             end
-                            if isSelected then imgui.SetItemDefaultFocus() end
+                            if isSelected then
+                                imgui.SetItemDefaultFocus()
+                            end
                         end
                         imgui.EndCombo()
                     end
-            
+
                     local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
                     if selectedWindow then
                         -- Add Button Options
@@ -1099,10 +1153,10 @@ local function renderAddButtonDialog()
                         if imgui.RadioButton("Window Toggle", addButtonDialog.commandType[1] == "isWindow") then
                             addButtonDialog.commandType[1] = "isWindow"
                         end
-            
+
                         imgui.Text("Button Name:")
                         imgui.InputText("##commandName", addButtonDialog.commandName, 64)
-            
+
                         -- Show fields based on command type
                         if addButtonDialog.commandType[1] == "isDirect" then
                             imgui.Text("Command Text:")
@@ -1116,15 +1170,15 @@ local function renderAddButtonDialog()
                             imgui.Text("Delay between commands (seconds):")
                             imgui.InputFloat("##seriesDelay", addButtonDialog.seriesDelay, 0.1, 1.0)
                             imgui.Text("Command Series:")
-            
+
                             local needNewInput = true
                             local nonEmptyCommands = {}
-            
+
                             for i, cmd in ipairs(addButtonDialog.seriesCommandInputs) do
                                 local label = string.format("Command %d##cmd%d", i, i)
                                 if imgui.InputText(label, cmd, 256) then
                                     if cmd[1] ~= "" and i == #addButtonDialog.seriesCommandInputs then
-                                        table.insert(addButtonDialog.seriesCommandInputs, { "" })
+                                        table.insert(addButtonDialog.seriesCommandInputs, {""})
                                     end
                                 end
                                 if cmd[1] ~= "" then
@@ -1132,27 +1186,27 @@ local function renderAddButtonDialog()
                                     needNewInput = false
                                 end
                             end
-            
+
                             for i = #addButtonDialog.seriesCommandInputs - 1, 1, -1 do
                                 if addButtonDialog.seriesCommandInputs[i][1] == "" then
                                     table.remove(addButtonDialog.seriesCommandInputs, i)
                                 end
                             end
-            
+
                             if #addButtonDialog.seriesCommandInputs == 0 then
-                                addButtonDialog.seriesCommandInputs = { { "" } }
+                                addButtonDialog.seriesCommandInputs = {{""}}
                             end
-            
+
                             addButtonDialog.seriesCommands[1] = table.concat(nonEmptyCommands, ",")
                         elseif addButtonDialog.commandType[1] == "isWindow" then
                             imgui.Text("Window Name:")
                             imgui.InputText("##windowToggleName", addButtonDialog.windowToggleName, 64)
                         end
-            
+
                         if selectedWindow.type == "imgbutton" then
                             imgui.Text("Texture Path:")
                             if imgui.InputText("##texturePath", addButtonDialog.texturePath, 256) then
-                                local texturePath = addon.path .. '/resources/' .. addButtonDialog.texturePath[1]
+                                local texturePath = addon.path .. "/resources/" .. addButtonDialog.texturePath[1]
                                 if fileExists(texturePath) then
                                     local loadedTexture = images.loadTextureFromFile(texturePath)
                                     if loadedTexture then
@@ -1165,91 +1219,115 @@ local function renderAddButtonDialog()
                                 end
                             end
                         end
-            
+
                         if imgui.Button("Add Button##ConfirmAdd") then
                             if addButtonDialog.commandName[1] == "" then
-                                print(chat.header(addon.name):append(chat.error("Please enter a name for the new button.")))
+                                print(
+                                    chat.header(addon.name):append(
+                                        chat.error("Please enter a name for the new button.")
+                                    )
+                                )
                             else
                                 local imagePathToSave = nil
                                 if selectedWindow.type == "imgbutton" then
                                     if addButtonDialog.previewTexture == fallbackTexture then
-                                        print('Using fallback texture for the button.')
-                                        imagePathToSave = 'misc/fallback.png'
+                                        print("Using fallback texture for the button.")
+                                        imagePathToSave = "misc/fallback.png"
                                     else
                                         imagePathToSave = addButtonDialog.texturePath[1]
                                     end
                                 end
-            
+
                                 local newCommand = {
                                     text = addButtonDialog.commandName[1],
                                     commandType = addButtonDialog.commandType[1],
                                     command = addButtonDialog.commandText[1],
-                                    toggleCommand = addButtonDialog.commandType[1] == "isToggle" and addButtonDialog.toggleCommand[1] or nil,
-                                    toggleWords = addButtonDialog.commandType[1] == "isToggle" and addButtonDialog.toggleWords[1] or nil,
-                                    seriesCommands = addButtonDialog.commandType[1] == "isSeries" and addButtonDialog.seriesCommands[1] or nil,
-                                    seriesDelay = addButtonDialog.commandType[1] == "isSeries" and addButtonDialog.seriesDelay[1] or nil,
-                                    windowToggleName = addButtonDialog.commandType[1] == "isWindow" and addButtonDialog.windowToggleName[1] or nil,
+                                    toggleCommand = addButtonDialog.commandType[1] == "isToggle" and
+                                        addButtonDialog.toggleCommand[1] or
+                                        nil,
+                                    toggleWords = addButtonDialog.commandType[1] == "isToggle" and
+                                        addButtonDialog.toggleWords[1] or
+                                        nil,
+                                    seriesCommands = addButtonDialog.commandType[1] == "isSeries" and
+                                        addButtonDialog.seriesCommands[1] or
+                                        nil,
+                                    seriesDelay = addButtonDialog.commandType[1] == "isSeries" and
+                                        addButtonDialog.seriesDelay[1] or
+                                        nil,
+                                    windowToggleName = addButtonDialog.commandType[1] == "isWindow" and
+                                        addButtonDialog.windowToggleName[1] or
+                                        nil,
                                     is_on = false,
                                     image = imagePathToSave
                                 }
-            
+
                                 table.insert(selectedWindow.commands, newCommand)
                                 settings.save()
-                                print(chat.header(addon.name):append(chat.message("New button added to window '" .. addButtonDialog.selectedWindow .. "'.")))
+                                print(
+                                    chat.header(addon.name):append(
+                                        chat.message(
+                                            "New button added to window '" .. addButtonDialog.selectedWindow .. "'."
+                                        )
+                                    )
+                                )
                             end
                         end
-            
+
                         -- Window Edit Section
                         imgui.Spacing()
                         imgui.Separator()
                         imgui.Spacing()
 
-                        imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })            
+                        imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
                         imgui.Text("Window Settings For:")
                         imgui.PopStyleColor()
                         imgui.SameLine()
                         imgui.Text(addButtonDialog.selectedWindow)
                         imgui.Spacing()
-                        
+
                         imgui.Text("Window Color:")
                         imgui.ColorEdit4("##editWindowColor", selectedWindow.windowColor)
-            
+
                         imgui.Text("Button Color:")
                         imgui.ColorEdit4("##editButtonColor", selectedWindow.buttonColor)
-            
+
                         imgui.Text("Text Color:")
                         imgui.ColorEdit4("##editTextColor", selectedWindow.textColor)
-            
+
                         imgui.Text("Max Buttons Per Row:")
                         imgui.InputInt("##editMaxButtonsPerRow", selectedWindow.maxButtonsPerRow)
                         if selectedWindow.maxButtonsPerRow[1] < 1 then
                             selectedWindow.maxButtonsPerRow[1] = 1
                         end
-            
+
                         imgui.Text("Button Spacing:")
                         imgui.InputInt("##editButtonSpacing", selectedWindow.buttonSpacing)
-            
+
                         if selectedWindow.type == "normal" then
                             imgui.Text("Button Width:")
                             imgui.InputInt("##editButtonWidth", selectedWindow.buttonWidth)
                             imgui.Text("Button Height:")
                             imgui.InputInt("##editButtonHeight", selectedWindow.buttonHeight)
                         elseif selectedWindow.type == "imgbutton" then
-                            selectedWindow.imageButtonWidth = selectedWindow.imageButtonWidth or { 40 }
-                            selectedWindow.imageButtonHeight = selectedWindow.imageButtonHeight or { 40 }
-            
+                            selectedWindow.imageButtonWidth = selectedWindow.imageButtonWidth or {40}
+                            selectedWindow.imageButtonHeight = selectedWindow.imageButtonHeight or {40}
+
                             imgui.Text("Image Button Width:")
                             imgui.InputInt("##editImageButtonWidth", selectedWindow.imageButtonWidth)
                             imgui.Text("Image Button Height:")
                             imgui.InputInt("##editImageButtonHeight", selectedWindow.imageButtonHeight)
                         end
-            
+
                         imgui.Spacing()
-            
+
                         if imgui.Button("Save Changes##EditWindow") then
                             settings.save()
                             cacheWindowSettings(addButtonDialog.selectedWindow, userSettings)
-                            print(chat.header(addon.name):append(chat.message('Updated window "' .. addButtonDialog.selectedWindow .. '".')))
+                            print(
+                                chat.header(addon.name):append(
+                                    chat.message('Updated window "' .. addButtonDialog.selectedWindow .. '".')
+                                )
+                            )
                         end
                         imgui.SameLine()
                         if imgui.Button("Delete Window##EditWindow") then
@@ -1260,24 +1338,30 @@ local function renderAddButtonDialog()
                         imgui.SameLine()
                         if imgui.Button("Cancel##EditWindow") then
                             revertWindowSettings(addButtonDialog.selectedWindow, userSettings)
-                            print(chat.header(addon.name):append(chat.message('Reverted changes to window "' .. addButtonDialog.selectedWindow .. '".')))
+                            print(
+                                chat.header(addon.name):append(
+                                    chat.message(
+                                        'Reverted changes to window "' .. addButtonDialog.selectedWindow .. '".'
+                                    )
+                                )
+                            )
                         end
                     end
                 else
                     imgui.Text("No windows available. Please create a window first.")
                 end
-            
-                imgui.EndChild()  -- End left pane
-            
+
+                imgui.EndChild() -- End left pane
+
                 -- Begin right pane
                 imgui.SameLine()
-                imgui.BeginChild("RightPane", { 0, 0 }, false)
-            
+                imgui.BeginChild("RightPane", {0, 0}, false)
+
                 local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
                 if selectedWindow then
                     -- Inline preview
                     local inlineWindow = {
-                        commands = T{},
+                        commands = T {},
                         windowColor = selectedWindow.windowColor,
                         buttonColor = selectedWindow.buttonColor,
                         textColor = selectedWindow.textColor,
@@ -1289,71 +1373,84 @@ local function renderAddButtonDialog()
                         imageButtonWidth = selectedWindow.imageButtonWidth,
                         imageButtonHeight = selectedWindow.imageButtonHeight
                     }
-            
+
                     for _, cmd in ipairs(selectedWindow.commands) do
                         table.insert(inlineWindow.commands, cmd)
                     end
-            
+
                     renderPreviewInline(inlineWindow)
-            
+
                     imgui.Spacing()
                     imgui.Text("Click a button above to select it. Then you can edit or delete it below.")
                     imgui.Spacing()
-            
+
                     -- Begin Edit Selected Button Section
                     if addButtonDialog.selectedCommandIndex then
-                        if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
+                        if
+                            not addButtonDialog.lastSelectedCommandIndex or
+                                addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex
+                         then
                             loadSelectedCommandFields(selectedWindow)
                             addButtonDialog.lastSelectedCommandIndex = addButtonDialog.selectedCommandIndex
                         end
-            
+
                         local selectedCommand = selectedWindow.commands[addButtonDialog.selectedCommandIndex]
                         if selectedCommand then
                             imgui.Spacing()
                             imgui.Separator()
                             imgui.Spacing()
-            
+
                             -- Movement buttons
                             local idx = addButtonDialog.selectedCommandIndex
                             local canMoveLeft = idx > 1
                             local canMoveRight = idx < #selectedWindow.commands
-            
+
                             if canMoveLeft then
                                 if imgui.Button("Move Left") then
-                                    selectedWindow.commands[idx], selectedWindow.commands[idx - 1] = selectedWindow.commands[idx - 1], selectedWindow.commands[idx]
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx - 1] =
+                                        selectedWindow.commands[idx - 1],
+                                        selectedWindow.commands[idx]
                                     addButtonDialog.selectedCommandIndex = idx - 1
                                     settings.save()
-                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" left.')))
+                                    print(
+                                        chat.header(addon.name):append(
+                                            chat.message('Moved button "' .. selectedCommand.text .. '" left.')
+                                        )
+                                    )
                                 end
                             else
                                 imgui.TextDisabled("Move Left")
                             end
-            
+
                             imgui.SameLine()
                             if canMoveRight then
                                 if imgui.Button("Move Right") then
-                                    selectedWindow.commands[idx], selectedWindow.commands[idx + 1] = selectedWindow.commands[idx + 1], selectedWindow.commands[idx]
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx + 1] =
+                                        selectedWindow.commands[idx + 1],
+                                        selectedWindow.commands[idx]
                                     addButtonDialog.selectedCommandIndex = idx + 1
                                     settings.save()
-                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" right.')))
+                                    print(
+                                        chat.header(addon.name):append(
+                                            chat.message('Moved button "' .. selectedCommand.text .. '" right.')
+                                        )
+                                    )
                                 end
                             else
                                 imgui.TextDisabled("Move Right")
                             end
-            
+
                             imgui.Spacing()
                             imgui.Separator()
                             imgui.Spacing()
                         end
                     end
-                    -- End Edit Selected Button Section
-            
                 else
                     imgui.Text("No window selected.")
                 end
-            
-                imgui.EndChild()  -- End right pane
-            
+
+                imgui.EndChild() -- End right pane
+
                 imgui.EndTabItem()
             end
 
@@ -1364,7 +1461,7 @@ local function renderAddButtonDialog()
         imgui.SameLine()
 
         imgui.BeginChild("RightSide", {0, -imgui.GetFrameHeightWithSpacing()}, true)
-        
+
         local rightSideHeight = imgui.GetWindowHeight()
         local halfHeight = (rightSideHeight / 2)
         local spacing = imgui.GetStyle().ItemSpacing.y
@@ -1373,7 +1470,7 @@ local function renderAddButtonDialog()
         imgui.BeginChild("WindowPreview", {0, previewHeight}, true)
         local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
         if selectedWindow and currentTab == "Add Button" then
-            imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })            
+            imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
             imgui.Text("Preview:")
             imgui.PopStyleColor()
             imgui.Spacing()
@@ -1400,7 +1497,9 @@ local function renderAddButtonDialog()
                 local previewCommand = {
                     text = addButtonDialog.commandName[1],
                     command = addButtonDialog.commandText[1],
-                    image = (selectedWindow.type == "imgbutton" and addButtonDialog.texturePath[1] ~= "") and addButtonDialog.texturePath[1] or nil
+                    image = (selectedWindow.type == "imgbutton" and addButtonDialog.texturePath[1] ~= "") and
+                        addButtonDialog.texturePath[1] or
+                        nil
                 }
                 table.insert(inlineWindow.commands, previewCommand)
             end
@@ -1412,23 +1511,29 @@ local function renderAddButtonDialog()
             imgui.Spacing()
 
             if addButtonDialog.selectedCommandIndex then
-                if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
+                if
+                    not addButtonDialog.lastSelectedCommandIndex or
+                        addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex
+                 then
                     loadSelectedCommandFields(selectedWindow)
                     addButtonDialog.lastSelectedCommandIndex = addButtonDialog.selectedCommandIndex
                 end
                 if addButtonDialog.selectedCommandIndex then
                     -- Load command fields if selection changed
-                    if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
+                    if
+                        not addButtonDialog.lastSelectedCommandIndex or
+                            addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex
+                     then
                         loadSelectedCommandFields(selectedWindow)
                         addButtonDialog.lastSelectedCommandIndex = addButtonDialog.selectedCommandIndex
                     end
-                
+
                     local selectedCommand = nil
                     local idx = addButtonDialog.selectedCommandIndex
                     if idx <= #selectedWindow.commands then
                         selectedCommand = selectedWindow.commands[idx]
                     end
-                
+
                     if selectedCommand then
                         imgui.Spacing()
                         imgui.Separator()
@@ -1444,10 +1549,16 @@ local function renderAddButtonDialog()
                             if canMoveLeft then
                                 if imgui.Button("Move Left") then
                                     -- Swap with the previous command
-                                    selectedWindow.commands[idx], selectedWindow.commands[idx - 1] = selectedWindow.commands[idx - 1], selectedWindow.commands[idx]
-                                    addButtonDialog.selectedCommandIndex = idx - 1  -- Update the selected index
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx - 1] =
+                                        selectedWindow.commands[idx - 1],
+                                        selectedWindow.commands[idx]
+                                    addButtonDialog.selectedCommandIndex = idx - 1
                                     settings.save()
-                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" left.')))
+                                    print(
+                                        chat.header(addon.name):append(
+                                            chat.message('Moved button "' .. selectedCommand.text .. '" left.')
+                                        )
+                                    )
                                 end
                             else
                                 imgui.TextDisabled("Move Left")
@@ -1457,28 +1568,33 @@ local function renderAddButtonDialog()
 
                             if canMoveRight then
                                 if imgui.Button("Move Right") then
-                                -- Swap with the next command
-                                    selectedWindow.commands[idx], selectedWindow.commands[idx + 1] = selectedWindow.commands[idx + 1], selectedWindow.commands[idx]
-                                    addButtonDialog.selectedCommandIndex = idx + 1  -- Update the selected index
+                                    -- Swap with the next command
+                                    selectedWindow.commands[idx], selectedWindow.commands[idx + 1] =
+                                        selectedWindow.commands[idx + 1],
+                                        selectedWindow.commands[idx]
+                                    addButtonDialog.selectedCommandIndex = idx + 1
                                     settings.save()
-                                    print(chat.header(addon.name):append(chat.message('Moved button "' .. selectedCommand.text .. '" right.')))
+                                    print(
+                                        chat.header(addon.name):append(
+                                            chat.message('Moved button "' .. selectedCommand.text .. '" right.')
+                                        )
+                                    )
                                 end
                             else
                                 imgui.TextDisabled("Move Right")
                             end
-                        end                                            
+                        end
                     end
                 end
             end
-
         elseif currentTab == "New Window" then
-            imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })            
+            imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
             imgui.Text("Preview:")
             imgui.PopStyleColor()
             imgui.Spacing()
 
             local previewWindow = {
-                commands = T{},
+                commands = T {},
                 type = newWindowDialog.windowType[1],
                 windowColor = newWindowDialog.windowColor,
                 buttonColor = newWindowDialog.buttonColor,
@@ -1493,18 +1609,23 @@ local function renderAddButtonDialog()
 
             for i = 1, 4 do
                 if newWindowDialog.windowType[1] == "imgbutton" then
-                    table.insert(previewWindow.commands, { 
-                        text = "Preview " .. i, 
-                        image = string.format('misc/%d.png', i)
-                    })
+                    table.insert(
+                        previewWindow.commands,
+                        {
+                            text = "Preview " .. i,
+                            image = string.format("misc/%d.png", i)
+                        }
+                    )
                 else
-                    table.insert(previewWindow.commands, { text = "Preview " .. i })
+                    table.insert(previewWindow.commands, {text = "Preview " .. i})
                 end
             end
 
             renderPreviewInline(previewWindow)
             imgui.Spacing()
-            imgui.Text("This is a sample preview of a potential new window layout.\n\nThe extra padding that shows up at the bottom of the above preview window when there is more than\none row will not show up on the actual windows created.\n\nI just haven't figured out what's causing it in this one preview window.")
+            imgui.Text(
+                "This is a sample preview of a potential new window layout.\n\nThe extra padding that shows up at the bottom of the above preview window when there is more than\none row will not show up on the actual windows created.\n\nI just haven't figured out what's causing it in this one preview window."
+            )
         end
         imgui.EndChild()
 
@@ -1514,21 +1635,22 @@ local function renderAddButtonDialog()
         local selectedWindow = userSettings.windows[addButtonDialog.selectedWindow]
         if selectedWindow and currentTab == "Add Button" then
             if addButtonDialog.selectedCommandIndex then
-                if not addButtonDialog.lastSelectedCommandIndex or addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex then
+                if
+                    not addButtonDialog.lastSelectedCommandIndex or
+                        addButtonDialog.lastSelectedCommandIndex ~= addButtonDialog.selectedCommandIndex
+                 then
                     loadSelectedCommandFields(selectedWindow)
                     addButtonDialog.lastSelectedCommandIndex = addButtonDialog.selectedCommandIndex
                 end
-        
+
                 local selectedCommand = selectedWindow.commands[addButtonDialog.selectedCommandIndex]
                 if selectedCommand then
-        
-                    imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
+                    imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
                     imgui.Text(string.format('Currently Editing: "%s"', selectedCommand.text))
                     imgui.PopStyleColor()
                     imgui.Separator()
                     imgui.Spacing()
-        
-                    -- Command Type
+
                     imgui.Text("Command Type:")
                     if imgui.RadioButton("Direct Command##editType", editCommandType[1] == "isDirect") then
                         editCommandType[1] = "isDirect"
@@ -1544,12 +1666,10 @@ local function renderAddButtonDialog()
                     if imgui.RadioButton("Window Toggle##editType", editCommandType[1] == "isWindow") then
                         editCommandType[1] = "isWindow"
                     end
-        
-                    -- Button Name
+
                     imgui.Text("Button Name:")
                     imgui.InputText("##editCommandName", editCommandName, 64)
-        
-                    -- Fields based on command type
+
                     if editCommandType[1] == "isDirect" then
                         imgui.Text("Command Text:")
                         imgui.InputText("##editCommandText", editCommandText, 256)
@@ -1562,8 +1682,7 @@ local function renderAddButtonDialog()
                         imgui.Text("Delay between commands (seconds):")
                         imgui.InputFloat("##editSeriesDelay", editSeriesDelay, 0.1, 1.0)
                         imgui.Text("Command Series:")
-        
-                        -- Edit Series Commands
+
                         for i, cmd in ipairs(editSeriesCommandInputs) do
                             local label = string.format("Command %d##editCmd%d", i, i)
                             if imgui.InputText(label, cmd, 256) then
@@ -1572,32 +1691,34 @@ local function renderAddButtonDialog()
                                 end
                             end
                         end
-        
+
                         -- Clean up empty inputs
                         for i = #editSeriesCommandInputs - 1, 1, -1 do
                             if editSeriesCommandInputs[i][1] == "" then
                                 table.remove(editSeriesCommandInputs, i)
                             end
                         end
-        
+
                         if #editSeriesCommandInputs == 0 then
-                            editSeriesCommandInputs = { {""} }
+                            editSeriesCommandInputs = {{""}}
                         end
                     elseif editCommandType[1] == "isWindow" then
                         imgui.Text("Window Name:")
                         imgui.InputText("##editWindowToggleName", editWindowToggleName, 64)
                     end
-        
-                    -- Texture path for image buttons
+
                     if selectedWindow.type == "imgbutton" then
                         imgui.Text("Texture Path:")
                         imgui.InputText("##editTexturePath", editTexturePath, 256)
                     end
-        
-                    -- Action buttons
+
                     if imgui.Button("Save Changes##EditCommand") then
                         saveSelectedCommandChanges(selectedWindow)
-                        print(chat.header(addon.name):append(chat.message('Updated button "' .. editCommandName[1] .. '".')))
+                        print(
+                            chat.header(addon.name):append(
+                                chat.message('Updated button "' .. editCommandName[1] .. '".')
+                            )
+                        )
                     end
                     imgui.SameLine()
                     if imgui.Button("Delete Button##DeleteCommand") then
@@ -1616,18 +1737,18 @@ local function renderAddButtonDialog()
         imgui.EndChild()
 
         imgui.EndChild() -- End RightSide
-        
+
         imgui.Separator()
         local helpButtonWidth = 240
         local helpButtonHeight = 24
         local windowWidth = imgui.GetWindowWidth()
         local cursorPosX = (windowWidth - helpButtonWidth) / 2
         imgui.SetCursorPosX(cursorPosX)
-        
-        if imgui.Button("Click here for help", { helpButtonWidth, helpButtonHeight }) then
-            helpDialog.isVisible = true 
+
+        if imgui.Button("Click here for help", {helpButtonWidth, helpButtonHeight}) then
+            helpDialog.isVisible = true
         end
-        
+
         imgui.End()
     else
         imgui.End()
@@ -1646,14 +1767,19 @@ local function renderDeleteConfirmDialog()
     imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
     imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
 
-    if not deleteConfirmDialog.isVisible then return end
+    if not deleteConfirmDialog.isVisible then
+        return
+    end
 
-    local viewportSize = { imgui.GetIO().DisplaySize.x, imgui.GetIO().DisplaySize.y }
-    local windowSize = { 300, 100 }
-    imgui.SetNextWindowPos({
-        (viewportSize[1] - windowSize[1]) / 2,
-        (viewportSize[2] - windowSize[2]) / 2
-    }, ImGuiCond_Always)
+    local viewportSize = {imgui.GetIO().DisplaySize.x, imgui.GetIO().DisplaySize.y}
+    local windowSize = {300, 100}
+    imgui.SetNextWindowPos(
+        {
+            (viewportSize[1] - windowSize[1]) / 2,
+            (viewportSize[2] - windowSize[2]) / 2
+        },
+        ImGuiCond_Always
+    )
     imgui.SetNextWindowSize(windowSize, ImGuiCond_Always)
 
     local isOpen = deleteConfirmDialog.isOpen
@@ -1670,26 +1796,32 @@ local function renderDeleteConfirmDialog()
         local totalWidth = (buttonWidth * 2) + spacing
         imgui.SetCursorPosX((windowSize[1] - totalWidth) / 2)
 
-        if imgui.Button("Yes##DeleteConfirm", { buttonWidth, 0 }) then
+        if imgui.Button("Yes##DeleteConfirm", {buttonWidth, 0}) then
             if deleteConfirmDialog.deleteType == "window" then
-                -- Delete window
                 local userSettings = altCommand and altCommand.settings or settings
                 userSettings.windows[deleteConfirmDialog.windowToDelete] = nil
                 settings.save()
-                print(chat.header(addon.name):append(chat.message('Deleted window "' .. deleteConfirmDialog.windowToDelete .. '".')))
+                print(
+                    chat.header(addon.name):append(
+                        chat.message('Deleted window "' .. deleteConfirmDialog.windowToDelete .. '".')
+                    )
+                )
                 deleteConfirmDialog.isVisible = false
                 editWindowDialog.isVisible = false
             else
-                -- Delete button
                 table.remove(deleteConfirmDialog.parentWindow.commands, addButtonDialog.selectedCommandIndex)
                 addButtonDialog.selectedCommandIndex = nil
                 settings.save()
-                print(chat.header(addon.name):append(chat.message('Deleted button "' .. deleteConfirmDialog.buttonToDelete.text .. '".')))
+                print(
+                    chat.header(addon.name):append(
+                        chat.message('Deleted button "' .. deleteConfirmDialog.buttonToDelete.text .. '".')
+                    )
+                )
                 deleteConfirmDialog.isVisible = false
             end
         end
         imgui.SameLine()
-        if imgui.Button("No##DeleteCancel", { buttonWidth, 0 }) then
+        if imgui.Button("No##DeleteCancel", {buttonWidth, 0}) then
             deleteConfirmDialog.isVisible = false
         end
     end
@@ -1714,30 +1846,27 @@ local function renderHelpWindow()
 
     local isOpen = helpDialog.isOpen
 
-    -- Set the initial size of the help window
-    imgui.SetNextWindowSize({ 1200, 600 }, ImGuiCond_Always)
+    imgui.SetNextWindowSize({1200, 600}, ImGuiCond_Always)
     if imgui.Begin("AltCommand Help", isOpen, ImGuiWindowFlags_NoResize) then
-        imgui.BeginChild("HelpContent", { 0, 0 }, false, ImGuiWindowFlags_HorizontalScrollbar)
+        imgui.BeginChild("HelpContent", {0, 0}, false, ImGuiWindowFlags_HorizontalScrollbar)
 
-        -- Render the Title Section
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.2, 0.8, 0.2, 1.0 })  -- Green color for title
+        imgui.PushStyleColor(ImGuiCol_Text, {0.2, 0.8, 0.2, 1.0})
         imgui.TextWrapped("AltCommand Addon Help\n")
         imgui.PopStyleColor()
         imgui.Spacing()
         imgui.Separator()
 
-        -- Render the General Commands Section
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })  -- Yellow color for section headers
+        imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
         imgui.TextWrapped("\nGeneral Commands:")
         imgui.PopStyleColor()
         imgui.TextWrapped("/altc or /altcommand - Opens main settings window")
         imgui.TextWrapped("/altc help or /altcommand help - Opens this help window\n")
 
-        -- Render the Create Window Tab Section
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
+        imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
         imgui.TextWrapped("\nCreate Window Tab:")
         imgui.PopStyleColor()
-        imgui.TextWrapped([[
+        imgui.TextWrapped(
+            [[
 Use the options on the left-hand side to set up the basic structure for a new window. You can choose:
 - Button type (standard or image buttons)
 - Background color
@@ -1747,39 +1876,45 @@ Use the options on the left-hand side to set up the basic structure for a new wi
 - Space between buttons
 - Button size
 These settings can all be edited after window creation.
-    ]])
-    imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.2, 0.2, 1.0 })
-    imgui.TextWrapped([[
+    ]]
+        )
+        imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.2, 0.2, 1.0})
+        imgui.TextWrapped(
+            [[
 !! All new windows must have a unique name.                              !!
 !! All windows can be repositioned by holding shift to drag them around. !!
 !! Window positions save automatically after dragging.                   !!
-]])
+]]
+        )
         imgui.PopStyleColor()
-        -- Render the Add/Edit Buttons Tab Section
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
+
+        imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
         imgui.TextWrapped("\nAdd/Edit Buttons Tab:")
         imgui.PopStyleColor()
-        imgui.TextWrapped([[
+        imgui.TextWrapped(
+            [[
 Use the left-hand pane to add new buttons. Start by selecting a window from the dropdown menu. Remember:
 - Normal buttons cannot be placed on image button windows, and vice versa. All new buttons must have a unique name.
-]])
+]]
+        )
 
-imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
-imgui.TextWrapped("\nThere are four types of buttons:")
-imgui.PopStyleColor()
+        imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
+        imgui.TextWrapped("\nThere are four types of buttons:")
+        imgui.PopStyleColor()
 
-imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
-imgui.TextWrapped("\n1. Direct Command:")
-imgui.PopStyleColor()
-imgui.TextWrapped([[
+        imgui.PushStyleColor(ImGuiCol_Text, {0.5, 0.7, 0.0, 1.0})
+        imgui.TextWrapped("\n1. Direct Command:")
+        imgui.PopStyleColor()
+        imgui.TextWrapped([[
    Used for single-line commands.
    - Example:
      - /ma "Fire" <t>.
 ]])
-imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
-imgui.TextWrapped("\n2. Toggle On/Off:")
-imgui.PopStyleColor()
-imgui.TextWrapped([[
+        imgui.PushStyleColor(ImGuiCol_Text, {0.5, 0.7, 0.0, 1.0})
+        imgui.TextWrapped("\n2. Toggle On/Off:")
+        imgui.PopStyleColor()
+        imgui.TextWrapped(
+            [[
    For commands that toggle with 2 words such as on / off. The default setting for toggle commands is off.
    - Example:
      - Command Name: Follow
@@ -1787,48 +1922,56 @@ imgui.TextWrapped([[
      - Toggle Words: on, off (comma-separated)
      - Clicking the button will execute /ms followme on and change the button display to Follow Off.
      - Clicking again will execute /ms followme off and change the button display back to Follow.
-]])
-imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
-imgui.TextWrapped("\n3. Command Series:")
-imgui.PopStyleColor()
-imgui.TextWrapped([[
+]]
+        )
+        imgui.PushStyleColor(ImGuiCol_Text, {0.5, 0.7, 0.0, 1.0})
+        imgui.TextWrapped("\n3. Command Series:")
+        imgui.PopStyleColor()
+        imgui.TextWrapped(
+            [[
    Functions like a macro with configurable delays (minimum 0.1 seconds). Each command added generates a new line.
    - Example:  
      - Command 1: /equipset 1  
      - Command 2: /do something  
      - Command 3: /equipset 2  
      - Command 4: (Leave blank to finish)  
-]])
-imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
-imgui.TextWrapped("\n4. Window Toggle:")
-imgui.PopStyleColor()
-imgui.TextWrapped([[
+]]
+        )
+        imgui.PushStyleColor(ImGuiCol_Text, {0.5, 0.7, 0.0, 1.0})
+        imgui.TextWrapped("\n4. Window Toggle:")
+        imgui.PopStyleColor()
+        imgui.TextWrapped(
+            [[
    Toggles visibility for a window with the same name.
    - Example: 
      - Create a window called "CorShots" and load it with all of the Quick Draw elements (/ja "Light Shot" <t>, etc.) 
      - In another window, add a Window Toggle button called "CorShots". 
      - The "CorShots" button now toggles the "CorShots" window's visibility.
-]])
+]]
+        )
 
-        -- Render the Preview and Editing Sections
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.9, 0.7, 0.0, 1.0 })
+        imgui.PushStyleColor(ImGuiCol_Text, {0.9, 0.7, 0.0, 1.0})
         imgui.TextWrapped("\nPreview and Editing:")
         imgui.PopStyleColor()
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+        imgui.PushStyleColor(ImGuiCol_Text, {0.5, 0.7, 0.0, 1.0})
         imgui.TextWrapped("\nPreview:")
         imgui.PopStyleColor()
-        imgui.TextWrapped([[
+        imgui.TextWrapped(
+            [[
 - Displays how the button will appear before creation. You can click buttons in the preview to edit or delete them.
 - Important: Click "Save Changes" for edits to take effect, deletions will take effect immediately after the confirmation dialog.
-]])
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.5, 0.7, 0.0, 1.0 })
+]]
+        )
+        imgui.PushStyleColor(ImGuiCol_Text, {0.5, 0.7, 0.0, 1.0})
         imgui.TextWrapped("\nWindow Settings:")
         imgui.PopStyleColor()
-        imgui.TextWrapped([[
+        imgui.TextWrapped(
+            [[
 - Alter the current window's settings (e.g., background or button colors). Use "Delete Window" to remove the window entirely.
 - Important: Click "Save Changes" for edits to take effect, "Cancel" to revert changes, and "Delete Window" to delete the window 
   and all of it's contents entirely.
-]])
+]]
+        )
 
         imgui.Separator()
         local buttonWidth = 240
@@ -1836,16 +1979,16 @@ imgui.TextWrapped([[
         local windowWidth = imgui.GetWindowWidth()
         local cursorPosX = (windowWidth - buttonWidth) / 2
         imgui.SetCursorPosX(cursorPosX)
-        if imgui.Button("Click me to get started!", { buttonWidth, buttonHeight }) then
-            helpDialog.isVisible = false -- Close help window
+        if imgui.Button("Click me to get started!", {buttonWidth, buttonHeight}) then
+            helpDialog.isVisible = false
             if not initializeWindowDialog("add") then
-                print(chat.header(addon.name):append(chat.error('Failed to initialize window dialog.')))
+                print(chat.header(addon.name):append(chat.error("Failed to initialize window dialog.")))
             end
             addButtonDialog.isVisible = true
         end
     end
     imgui.End()
-    
+
     if not isOpen[1] then
         helpDialog.isVisible = false
         helpDialog.isOpen[1] = true
@@ -1853,41 +1996,56 @@ imgui.TextWrapped([[
     imgui.PopStyleVar(4)
 end
 
-ashita.events.register('d3d_present', 'timer_handler', function()
-    local current_time = os.clock()
+ashita.events.register(
+    "d3d_present",
+    "timer_handler",
+    function()
+        local current_time = os.clock()
 
-    for name, timer in pairs(timers) do
-        local elapsed_time = current_time - timer.start_time
-        if elapsed_time >= timer.delay then
-            -- Execute the current command
-            local command = timer.commands[timer.index]
-            if command then
-                AshitaCore:GetChatManager():QueueCommand(-1, command)
-                timer.index = timer.index + 1
-                timer.start_time = current_time  -- Reset timer for the next command
-            else
-                -- All commands executed, remove the timer
-                timers[name] = nil
+        for name, timer in pairs(timers) do
+            local elapsed_time = current_time - timer.start_time
+            if elapsed_time >= timer.delay then
+                local command = timer.commands[timer.index]
+                if command then
+                    AshitaCore:GetChatManager():QueueCommand(-1, command)
+                    timer.index = timer.index + 1
+                    timer.start_time = current_time -- Reset timer for the next command
+                else
+                    -- All commands executed, remove the timer
+                    timers[name] = nil
+                end
             end
         end
     end
-end)
+)
 
-ashita.events.register('load', 'load_cb', function ()
-    altCommand.settings.windows:each(function (window)
-        window.commands:each(function (command)
-            if (command.image) then
-                local texturePath = addon.path .. '/resources/' .. command.image:gsub('\\', '/')
-                local texture = images.loadTextureFromFile(texturePath)
-                if texture then
-                    textureCache[command.image] = texture
-                else
-                    print(chat.header(addon.name):append(chat.error('Failed to load texture from: ' .. texturePath)))
-                end
+ashita.events.register(
+    "load",
+    "load_cb",
+    function()
+        altCommand.settings.windows:each(
+            function(window)
+                window.commands:each(
+                    function(command)
+                        if (command.image) then
+                            local texturePath = addon.path .. "/resources/" .. command.image:gsub("\\", "/")
+                            local texture = images.loadTextureFromFile(texturePath)
+                            if texture then
+                                textureCache[command.image] = texture
+                            else
+                                print(
+                                    chat.header(addon.name):append(
+                                        chat.error("Failed to load texture from: " .. texturePath)
+                                    )
+                                )
+                            end
+                        end
+                    end
+                )
             end
-        end)
-    end)
-end)
+        )
+    end
+)
 
 local function renderCommandBox()
     local windowCount = 0
@@ -1908,7 +2066,7 @@ local function renderCommandBox()
         end
     end
 
-    -- Render helper dialogs   
+    -- Render helper dialogs
     renderDeleteConfirmDialog()
 
     -- Render the preview window if the dialog is visible
@@ -1918,11 +2076,11 @@ local function renderCommandBox()
 
         if newWindowDialog.windowType[1] == "imgbutton" then
             for i = 1, 8 do
-                table.insert(previewCommands, { text = "Preview " .. i, image = 'misc/preview.png' })
+                table.insert(previewCommands, {text = "Preview " .. i, image = "misc/preview.png"})
             end
         else
             for i = 1, 8 do
-                table.insert(previewCommands, { text = "Preview " .. i })
+                table.insert(previewCommands, {text = "Preview " .. i})
             end
         end
 
@@ -1932,81 +2090,97 @@ local function renderCommandBox()
     end
 end
 
-ashita.events.register('d3d_present', 'render_cb', function()
-    -- Update the current menu name
-    current_menu = get_game_menu_name()
-    
-    -- Determine if we should hide the UI
-    local shouldHideUI = false
-    
-    -- Always hide if interface is hidden
-    if is_game_interface_hidden() then
-        shouldHideUI = true
-    end
+ashita.events.register(
+    "d3d_present",
+    "render_cb",
+    function()
+        -- Update the current menu name
+        current_menu = get_game_menu_name()
 
-    -- Hide during events/cutscenes
-    if is_event_system_active() then
-        shouldHideUI = true
-    end
+        -- Determine if we should hide the UI
+        local shouldHideUI = false
 
-    -- Hide if the map is open
-    if current_menu:match(defines.menus.map) or current_menu:match(defines.menus.region_map) then
-        shouldHideUI = true
-    end
-
-    -- Hide inside auction menu
-    if current_menu:match(defines.menus.auction_menu) then
-        shouldHideUI = true
-    end
-
-    -- Hide if chat is expanded
-    if is_chat_expanded() then
-        shouldHideUI = true
-    end
-
-    -- If we should hide the UI, return early
-    if shouldHideUI then
-        return
-    end
-    renderCommandBox()
-    renderAddButtonDialog()
-    renderHelpWindow()
-end)
-
-ashita.events.register('command', 'command_cb', function(e)
-    -- Split command into args and convert to lowercase for easier comparison
-    local args = e.command:args()
-    local cmd = args[1]:lower()
-    
-    -- Check if command matches either /altc or /altcommand
-    if cmd ~= '/altc' and cmd ~= '/altcommand' then 
-        return 
-    end
-
-    -- Handle help command
-    if args[2] and args[2]:lower() == 'help' then
-        helpDialog.isVisible = true
-        e.blocked = true
-        return
-    end
-
-    -- Handle main window open (no args or just the base command)
-    if not args[2] then
-        if not initializeWindowDialog("add") then
-            print(chat.header(addon.name):append(chat.error('Failed to initialize window dialog.')))
+        -- Always hide if interface is hidden
+        if is_game_interface_hidden() then
+            shouldHideUI = true
         end
-        addButtonDialog.isVisible = true
-        e.blocked = true
-        return
-    end
-end)
 
-ashita.events.register('unload', 'unload_cb', function ()
-    -- Remove textures from settings before saving
-    altCommand.settings.windows:each(function (window)
-        window.commands:each(function (command)
-            command.texture = nil
-        end)
-    end)
-    settings.save()
-end)
+        -- Hide during events/cutscenes
+        if is_event_system_active() then
+            shouldHideUI = true
+        end
+
+        -- Hide if the map is open
+        if current_menu:match(defines.menus.map) or current_menu:match(defines.menus.region_map) then
+            shouldHideUI = true
+        end
+
+        -- Hide inside auction menu
+        if current_menu:match(defines.menus.auction_menu) then
+            shouldHideUI = true
+        end
+
+        -- Hide if chat is expanded
+        if is_chat_expanded() then
+            shouldHideUI = true
+        end
+
+        -- If we should hide the UI, return early
+        if shouldHideUI then
+            return
+        end
+        renderCommandBox()
+        renderAddButtonDialog()
+        renderHelpWindow()
+    end
+)
+
+ashita.events.register(
+    "command",
+    "command_cb",
+    function(e)
+        -- Split command into args and convert to lowercase for easier comparison
+        local args = e.command:args()
+        local cmd = args[1]:lower()
+
+        -- Check if command matches either /altc or /altcommand
+        if cmd ~= "/altc" and cmd ~= "/altcommand" then
+            return
+        end
+
+        -- Handle help command
+        if args[2] and args[2]:lower() == "help" then
+            helpDialog.isVisible = true
+            e.blocked = true
+            return
+        end
+
+        -- Handle main window open (no args or just the base command)
+        if not args[2] then
+            if not initializeWindowDialog("add") then
+                print(chat.header(addon.name):append(chat.error("Failed to initialize window dialog.")))
+            end
+            addButtonDialog.isVisible = true
+            e.blocked = true
+            return
+        end
+    end
+)
+
+ashita.events.register(
+    "unload",
+    "unload_cb",
+    function()
+        -- Remove textures from settings before saving
+        altCommand.settings.windows:each(
+            function(window)
+                window.commands:each(
+                    function(command)
+                        command.texture = nil
+                    end
+                )
+            end
+        )
+        settings.save()
+    end
+)
