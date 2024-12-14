@@ -507,6 +507,11 @@ local function ensureNormalButtonDefaults()
 end
 
 local function renderWindow(window, windowName, isPreview)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
+    
     -- Validate and wrap settings for ImGui compatibility
     window.maxButtonsPerRow = window.maxButtonsPerRow or T{ 4 }
     window.buttonSpacing = window.buttonSpacing or T{ 10 }
@@ -706,10 +711,16 @@ local function renderWindow(window, windowName, isPreview)
         imgui.End()
     end
 
+    imgui.PopStyleVar(4)
     imgui.PopStyleColor(1)
 end
 
 local function renderCommandsInline(window)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
+
     window.maxButtonsPerRow = window.maxButtonsPerRow or T{ 4 }
     window.buttonSpacing = window.buttonSpacing or T{ 10 }
     window.buttonWidth = window.buttonWidth or T{ 40 }
@@ -808,11 +819,15 @@ local function renderCommandsInline(window)
             end
         end
     end
-
+    imgui.PopStyleVar(4)
     imgui.PopStyleColor(3)
 end
 
 local function renderPreviewInline(windowConfig)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
     local commands = windowConfig.commands
     local maxButtonsPerRow = (windowConfig.maxButtonsPerRow and windowConfig.maxButtonsPerRow[1]) or 4
     local buttonSpacing = (windowConfig.buttonSpacing and windowConfig.buttonSpacing[1]) or 10
@@ -923,9 +938,14 @@ local function renderPreviewInline(windowConfig)
     imgui.PopStyleColor(3)
     imgui.EndChild()
     imgui.PopStyleColor()
+    imgui.PopStyleVar(4)
 end
 
 local function renderAddButtonDialog()
+    imgui.PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
     if not addButtonDialog.isVisible then
         return
     end
@@ -1617,9 +1637,15 @@ local function renderAddButtonDialog()
         addButtonDialog.isVisible = false
         addButtonDialog.isOpen[1] = true
     end
+    imgui.PopStyleVar(4)
 end
 
 local function renderDeleteConfirmDialog()
+    imgui.PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
+
     if not deleteConfirmDialog.isVisible then return end
 
     local viewportSize = { imgui.GetIO().DisplaySize.x, imgui.GetIO().DisplaySize.y }
@@ -1673,9 +1699,15 @@ local function renderDeleteConfirmDialog()
         deleteConfirmDialog.isVisible = false
         deleteConfirmDialog.isOpen[1] = true
     end
+    imgui.PopStyleVar(4)
 end
 
 local function renderHelpWindow()
+    imgui.PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0)
+    imgui.PushStyleVar(ImGuiStyleVar_FrameRounding, 5)
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 5)
+
     if not helpDialog.isVisible then
         return
     end
@@ -1818,6 +1850,7 @@ imgui.TextWrapped([[
         helpDialog.isVisible = false
         helpDialog.isOpen[1] = true
     end
+    imgui.PopStyleVar(4)
 end
 
 ashita.events.register('d3d_present', 'timer_handler', function()
