@@ -14,6 +14,7 @@ local ffi = require("ffi")
 local textureCache = {}
 local timers = {}
 local cachedSettings = {}
+local forcePositionUpdate = {}
 local editCommandName = {""}
 local editCommandType = {"isDirect"}
 local editCommandText = {""}
@@ -143,8 +144,8 @@ local defaultWindow = {
             command = "/altc help"
         }
     },
-    windowPos = T {x = 100, y = 100},
-    isDraggable = true,
+    windowPos = {x = 100, y = 100},
+    isDraggable = false,
     isVisible = true,
     windowColor = {0.016, 0.055, 0.051, 0.49},
     buttonColor = {0.2, 0.376, 0.8, 1.0},
@@ -184,28 +185,11 @@ local newWindowDialog = {
     }
 }
 
-local editWindowDialog = {
-    isVisible = false,
-    isOpen = {true},
-    windowName = "",
-    windowColor = {0.078, 0.890, 0.804, 0.49},
-    buttonColor = {0.2, 0.4, 0.8, 1.0},
-    textColor = {1.0, 1.0, 1.0, 1.0},
-    maxButtonsPerRow = {4},
-    buttonSpacing = {10},
-    buttonWidth = {105},
-    buttonHeight = {22},
-    imageButtonWidth = {40},
-    imageButtonHeight = {40},
-    originalWindowName = "",
-    originalSettings = {}
-}
-
 local addButtonDialog = {
     isVisible = false,
     isOpen = {true},
     selectedWindowIndex = {1},
-    selectedWindow = {""},
+    selectedWindow = "",
     commandType = {"isDirect"},
     toggleCommand = {""},
     toggleWords = {""},
@@ -306,6 +290,9 @@ end
 local function cacheWindowSettings(windowName, userSettings)
     local window = userSettings.windows[windowName]
     if window then
+        -- Ensure window has position
+        window.windowPos = window.windowPos or {x = 100, y = 100}
+
         -- Deep copy all values to avoid reference issues
         cachedSettings[windowName] = {
             windowColor = {unpack(window.windowColor or {0.078, 0.890, 0.804, 0.49})},
@@ -317,7 +304,8 @@ local function cacheWindowSettings(windowName, userSettings)
             buttonHeight = {window.buttonHeight and window.buttonHeight[1] or 22},
             imageButtonWidth = {window.imageButtonWidth and window.imageButtonWidth[1] or 40},
             imageButtonHeight = {window.imageButtonHeight and window.imageButtonHeight[1] or 40},
-            windowType = window.type or "normal"
+            windowType = window.type or "normal",
+            windowPos = {x = window.windowPos.x, y = window.windowPos.y}
         }
     end
 end
@@ -395,22 +383,7 @@ local function initializeWindowDialog(dialogType, windowName)
         return true
     end
 
-    -- Edit Window
-    if dialogType == "edit" then
-        -- Initialize edit dialog
-        editWindowDialog.isVisible = true
-        editWindowDialog.windowName = windowName
-        editWindowDialog.originalWindowName = windowName
-        editWindowDialog.windowColor = window.windowColor or {0.078, 0.890, 0.804, 0.49}
-        editWindowDialog.buttonColor = window.buttonColor or {0.2, 0.4, 0.8, 1.0}
-        editWindowDialog.maxButtonsPerRow = window.maxButtonsPerRow or {4}
-        editWindowDialog.buttonSpacing = window.buttonSpacing or {5}
-        editWindowDialog.buttonWidth = window.buttonWidth or {105}
-        editWindowDialog.buttonHeight = window.buttonHeight or {22}
-        editWindowDialog.imageButtonWidth = window.imageButtonWidth or {40}
-        editWindowDialog.imageButtonHeight = window.imageButtonHeight or {40}
-        editWindowDialog.windowType = {window.type or "normal"}
-    elseif dialogType == "add" then
+    if dialogType == "add" then
         -- Initialize add dialog
         addButtonDialog.isVisible = true
         addButtonDialog.selectedWindow = windowName
@@ -573,7 +546,7 @@ local function renderWindow(window, windowName, isPreview)
     window.imageButtonHeight[1] = math.max(1, tonumber(window.imageButtonHeight[1]) or 40)
 
     local commands = window.commands
-    local windowPos = window.windowPos
+    local windowPos = window.windowPos or {x = 0, y = 0}
     local windowColor = window.windowColor or {0.078, 0.890, 0.804, 0.49}
     local buttonColor = window.buttonColor or {0.2, 0.4, 0.8, 1.0}
     local textColor = window.textColor or {1.0, 1.0, 1.0, 1.0}
@@ -612,11 +585,18 @@ local function renderWindow(window, windowName, isPreview)
 
     imgui.SetNextWindowSize({windowWidth, totalHeight}, ImGuiCond_Always)
 
-    if window.isDraggable then
-        imgui.SetNextWindowPos({windowPos.x, windowPos.y}, ImGuiCond_FirstUseEver)
+    -- Determine if we need to force position update
+    local cond = ImGuiCond_FirstUseEver
+    if forcePositionUpdate[windowName] then
+        cond = ImGuiCond_Always
+        forcePositionUpdate[windowName] = false -- Reset the flag after updating
+    elseif window.isDraggable then
+        cond = ImGuiCond_FirstUseEver
     else
-        imgui.SetNextWindowPos({windowPos.x, windowPos.y}, ImGuiCond_Always)
+        cond = ImGuiCond_Always
     end
+
+    imgui.SetNextWindowPos({windowPos.x, windowPos.y}, cond)
 
     imgui.PushStyleColor(ImGuiCol_WindowBg, {windowColor[1], windowColor[2], windowColor[3], windowColor[4]})
 
@@ -743,9 +723,12 @@ local function renderWindow(window, windowName, isPreview)
             end
         end
 
-        -- Save window position dynamically when dragged
+        -- Save window position dynamically when dragged or manually positioned with x/y
         if window.isDraggable and imgui.IsWindowHovered() and imgui.IsMouseDragging(0) then
-            windowPos.x, windowPos.y = imgui.GetWindowPos()
+            local newX, newY = imgui.GetWindowPos()
+            windowPos.x = newX
+            windowPos.y = newY
+            settings.save()
         end
 
         imgui.PopStyleColor(3)
@@ -1110,10 +1093,7 @@ local function renderAddButtonDialog()
 
                 -- Window selection
                 if #windowNames > 0 then
-                    local currentSelection = addButtonDialog.selectedWindow
-                    if type(currentSelection) == "table" then
-                        currentSelection = currentSelection[1] or ""
-                    end
+                    local currentSelection = addButtonDialog.selectedWindow or ""
 
                     if imgui.BeginCombo("##WindowSelect", currentSelection) then
                         for i, name in ipairs(windowNames) do
@@ -1284,6 +1264,22 @@ local function renderAddButtonDialog()
                         imgui.SameLine()
                         imgui.Text(addButtonDialog.selectedWindow)
                         imgui.Spacing()
+
+                        local selectedWindowName = addButtonDialog.selectedWindow
+                        local selectedWindow = userSettings.windows[selectedWindowName]
+
+                        imgui.Text("Window Position:")
+                        selectedWindow.windowPos = selectedWindow.windowPos or {x = 100, y = 100}
+                        local pos = {
+                            userSettings.windows[selectedWindowName].windowPos.x,
+                            userSettings.windows[selectedWindowName].windowPos.y
+                        }
+                        if imgui.DragInt2("##windowPos", pos) then
+                            userSettings.windows[selectedWindowName].windowPos.x = pos[1]
+                            userSettings.windows[selectedWindowName].windowPos.y = pos[2]
+                            forcePositionUpdate[selectedWindowName] = true
+                            settings.save()
+                        end
 
                         imgui.Text("Window Color:")
                         imgui.ColorEdit4("##editWindowColor", selectedWindow.windowColor)
@@ -1807,7 +1803,6 @@ local function renderDeleteConfirmDialog()
                     )
                 )
                 deleteConfirmDialog.isVisible = false
-                editWindowDialog.isVisible = false
             else
                 table.remove(deleteConfirmDialog.parentWindow.commands, addButtonDialog.selectedCommandIndex)
                 addButtonDialog.selectedCommandIndex = nil
