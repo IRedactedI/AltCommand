@@ -1,3 +1,7 @@
+-- This is my first addon, so it's a bit of a mess. I'm still learning Lua and Ashita, so I'm sure there are better ways to do things.
+-- Thank you to atom0s for help with texture loading and caching. 
+-- Full credit to onimitch for the UI hiding sections here that I shamelessly copied from his minimapcontrol addon.
+
 addon.name = "AltCommand"
 addon.author = "Redacted"
 addon.version = "1.0"
