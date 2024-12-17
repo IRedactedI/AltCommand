@@ -56,8 +56,8 @@ Each text entry in a command series creates a new blank entry below it. Leave th
 
 For this example I created a window named Jobs, and created a window toggle button called Corsair. Now, I can create a window called Corsair, and fill it with buttons I only use for as COR. Clicking the Corsair button on the Jobs window, will toggle visibility of the Corsair window. You could further nest more windows inside the Corsair window if you wished, such as Rolls, or Quck Draw, etc. to provide access to commands when needed, but hide them when not in use.
 
-# Editing Windows
-All window and button settings can be edited after creation except window type (normal or image buttons.)
+# Editing
+All windows scale with button settings and can be edited after creation except window type (normal or image buttons.)
 
 ## Editing Windows:
 Window editing for the currently selected window is available below the add button section:
