@@ -927,7 +927,17 @@ local function renderPreviewInline(windowConfig)
                 ImGuiWindowFlags_NoScrollWithMouse,
                 ImGuiWindowFlags_AlwaysUseWindowPadding
             )
-            imgui.BeginChild("ExistingWindowPreview", {windowWidth, totalHeight}, true, windowFlags)
+            -- Before rendering the preview child window:
+            local parentWidth = imgui.GetWindowWidth()
+            local parentHeight = imgui.GetWindowHeight()
+
+            -- Calculate position to center the child window
+            local childX = (parentWidth - windowWidth) * 0.5
+            local childY = (parentHeight - totalHeight) * 0.2
+
+            -- Set child window position and create it
+            imgui.SetCursorPos({childX, childY})
+            imgui.BeginChild("ExistingWindowPreview", {windowWidth, totalHeight}, false, windowFlags)
 
             local buttonColor = windowConfig.buttonColor or {0.2, 0.4, 0.8, 1.0}
             imgui.PushStyleColor(ImGuiCol_Button, buttonColor)
@@ -1019,7 +1029,7 @@ local function renderAddButtonDialog()
 
             ensureNewWindowDefaults()
 
-            imgui.SetNextWindowSize({1400, 600}, ImGuiCond_Always)
+            imgui.SetNextWindowSize({1250, 600}, ImGuiCond_Always)
             if imgui.Begin("Alt Command v1.0", isOpen, ImGuiWindowFlags_NoResize) then
                 local userSettings = altCommand and altCommand.settings or settings
                 local windowNames, windowIndexMap = getWindowNamesFromSettings(userSettings)
@@ -1668,7 +1678,7 @@ local function renderAddButtonDialog()
                     renderPreviewInline(previewWindow)
                     imgui.Spacing()
                     imgui.Text(
-                        "This is a sample preview of a potential new window layout.\n\nThe extra padding that shows up at the bottom of the above preview window when there is more than\none row will not show up on the actual windows created.\n\nI just haven't figured out what's causing it in this one preview window."
+                        "This is a sample preview of a potential new window layout.\n\nWindows resize automatically with button size and spacing.\n\nIf you have extra padding below your buttons, decrease your button spacing."
                     )
                 end
                 imgui.EndChild()
