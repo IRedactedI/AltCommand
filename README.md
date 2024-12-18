@@ -2,7 +2,9 @@
 
 ### Alt Command is an Ashita v4 addon that allows users to create and manage custom windows and buttons.
 
-Most of the screenshots here are a little outdated, the window and button borders have been removed and slight rounding has been added, as well as the option to manually position windows from within the UI. I'll update the README when I have more time. the picture below is a more accurate representation of what the addon will produce. More custom icons will be added over time, as I have time to create them.
+Most of the screenshots here are a little outdated, the window and button borders have been removed and slight rounding has been added, as well as the option to manually position windows from within the UI. I'll update the README when I have more time. 
+
+The picture below is a more accurate representation of what the addon will produce. More custom icons will be added over time, as I have time to create them.
 
 ![Screenshot 2024-12-18 094239](https://github.com/user-attachments/assets/ba388e68-356b-4bbe-a00b-14195d78fafd)
 
