@@ -85,4 +85,6 @@ Standard buttons cannot be placed on image button windows, and vice versa.
 
 Thanks to atom0s and Thorny for Ashita.
 
-Special thanks to at0mos for figuring out what I was doing wrong with image buttons, and correcting my texture loading code!
+Thanks to at0mos for figuring out what I was doing wrong with image buttons, and correcting my texture loading code.
+
+Thanks to onimitch for the UI hiding sections of code.
