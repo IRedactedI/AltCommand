@@ -10,6 +10,16 @@ local variables = require("variables")
 local renders = {}
 
 renders.renderWindow = function(window, windowName, isPreview)
+    local function getToggleText(buttonName, toggleWords, isActive)
+        local word1, word2 = string.match(toggleWords or "on off", "(%w+)[%s,]+(%w+)")
+        word1 = word1 or "on"
+        word2 = word2 or "off"
+        
+        if word1 == "on" and word2 == "off" then
+            return buttonName .. (isActive and " Off" or "")
+        end
+        return buttonName .. " " .. (isActive and word2 or word1)
+    end
     local styleVars = {
         {id = ImGuiStyleVar_FrameBorderSize, value = 0},
         {id = ImGuiStyleVar_WindowBorderSize, value = 0},
@@ -102,7 +112,7 @@ renders.renderWindow = function(window, windowName, isPreview)
 
                         local label = command.text or "No Label"
                         if command.commandType == "isToggle" then
-                            label = command.is_on and (command.text .. " Off") or command.text
+                            label = getToggleText(command.text, command.toggleWords, command.is_on)
                         end
 
                         local buttonClicked = false
@@ -211,6 +221,15 @@ renders.renderWindow = function(window, windowName, isPreview)
 end
 
 renders.renderPreviewInline = function(windowConfig)
+    local function getPreviewToggleText(buttonName, rawToggleWords)
+        local word1, word2 = string.match(rawToggleWords or "on off", "(%w+)[%s,]+(%w+)")
+        word1 = word1 or "on"
+        word2 = word2 or "off"
+        if word1 == "on" and word2 == "off" then
+            return buttonName
+        end
+        return buttonName .. " " .. word1
+    end
     local styleVars = {
         {id = ImGuiStyleVar_FrameBorderSize, value = 0},
         {id = ImGuiStyleVar_WindowBorderSize, value = 0},
@@ -285,6 +304,9 @@ renders.renderPreviewInline = function(windowConfig)
                     cmdIndex = cmdIndex + 1
                     local command = commands[i + j]
                     local label = command.text or "No Text"
+                    if command.commandType == "isToggle" then
+                        label = getPreviewToggleText(command.text, variables.addButtonDialog.toggleWords[1])
+                    end
     
                     imgui.PushID("preview_"..i.."_"..j)
     
@@ -309,18 +331,26 @@ renders.renderPreviewInline = function(windowConfig)
                             
                             local textureID = tonumber(ffi.cast("uint32_t", tex or variables.fallbackTexture))
                             if imgui.ImageButton(textureID, {buttonWidth, buttonHeight}) then
-                                variables.addButtonDialog.selectedCommandIndex = cmdIndex
+                                if not command.isPreview then
+                                    variables.addButtonDialog.selectedCommandIndex = cmdIndex
+                                end
                             end
                         else
                             local textureID = tonumber(ffi.cast("uint32_t", variables.fallbackTexture))
                             if imgui.ImageButton(textureID, {buttonWidth, buttonHeight}) then
-                                variables.addButtonDialog.selectedCommandIndex = cmdIndex
+                                if not command.isPreview then
+                                    variables.addButtonDialog.selectedCommandIndex = cmdIndex
+                                end
                             end
                         end
                     else
                         imgui.PushStyleColor(ImGuiCol_Text, textColor)
-                        if imgui.Button(label, {buttonWidth, buttonHeight}) then
-                            variables.addButtonDialog.selectedCommandIndex = cmdIndex
+                        if command.isPreview then
+                            imgui.Button(label, {buttonWidth, buttonHeight})
+                        else
+                            if imgui.Button(label, {buttonWidth, buttonHeight}) then
+                                variables.addButtonDialog.selectedCommandIndex = cmdIndex
+                            end
                         end
                         imgui.PopStyleColor()
                     end
@@ -337,7 +367,7 @@ renders.renderPreviewInline = function(windowConfig)
             imgui.EndChild()
             imgui.PopStyleColor()
         end)
-    end
+end
 
 renders.renderAddButtonDialog = function()
     local styleVars = {
@@ -807,7 +837,10 @@ renders.renderAddButtonDialog = function()
                         local previewCommand = {
                             text = variables.addButtonDialog.commandName[1],
                             command = variables.addButtonDialog.commandText[1],
-                            image = (selectedWindow.type == "imgbutton" and variables.addButtonDialog.texturePath[1] ~= "") and variables.addButtonDialog.texturePath[1] or nil
+                            commandType = variables.addButtonDialog.commandType[1],
+                            toggleWords = variables.addButtonDialog.toggleWords[1],
+                            image = (selectedWindow.type == "imgbutton" and variables.addButtonDialog.texturePath[1] ~= "") and variables.addButtonDialog.texturePath[1] or nil,
+                            isPreview = true
                         }
                         table.insert(inlineWindow.commands, previewCommand)
                     end
