@@ -138,7 +138,7 @@ Click on a button in the preview window to edit it:
 
 ## To-Do
 
-- ~~Add saving and loading of window sets per job, with a UI menu to facilitate this functionality.~~
+- ~~Add saving and loading of window sets per job.~~ Done
 - Create additional custom icons.
 
 ---
