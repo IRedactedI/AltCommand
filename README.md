@@ -1,10 +1,6 @@
 # Alt Command
 
-**Alt Command** is an Ashita v4 addon that allows users to create and manage custom windows and buttons.
-
-Most of the screenshots here are slightly outdated. The window and button borders have been removed, slight rounding has been added, and there is now an option to manually position windows from within the UI. I'll update the README with new visuals when I have more time.
-
-The picture below is a more accurate representation of what the addon produces. More custom icons will be added over time as I create them:
+**Alt Command** is an Ashita v4 addon that allows users to create and manage custom windows and buttons:
 
 ![Screenshot](https://github.com/user-attachments/assets/ba388e68-356b-4bbe-a00b-14195d78fafd)
 
@@ -14,7 +10,7 @@ The picture below is a more accurate representation of what the addon produces. 
 
 Type `/altc` or `/altcommand` to bring up the main configuration window:
 
-![Main Configuration Window](https://github.com/user-attachments/assets/9a2ecedb-85e8-4e11-95fe-839ffb0eef47)
+![Screenshot 2024-12-19 150942](https://github.com/user-attachments/assets/5fec47b7-1b91-4aff-92de-3316e64d5ded)
 
 ---
 
@@ -22,8 +18,14 @@ Type `/altc` or `/altcommand` to bring up the main configuration window:
 
 ### Step 1: Select Button Type
 Use the radio buttons to select the button type:
+ 
+- **Normal**
+  
+![Screenshot 2024-12-19 151303](https://github.com/user-attachments/assets/dba8ffee-862c-4a29-863d-59432d0b6116)
 
-![Normal Button](https://github.com/user-attachments/assets/ed3c76b8-ebe8-4a97-9e99-2c41466f6723) or ![Image Button](https://github.com/user-attachments/assets/aa608f63-4678-4790-8fdd-f7dda089a3fb)
+- **Image Button**
+  
+![Screenshot 2024-12-19 151355](https://github.com/user-attachments/assets/50f4e365-a767-4684-805b-3032f9f52fe0)
 
 ### Step 2: Configure Window Settings
 Use the settings in the left pane to configure:
@@ -36,7 +38,7 @@ Use the settings in the left pane to configure:
 
 You must create a unique name for every window you create. Once configured, click **Create Window**:
 
-![Create Window Settings](https://github.com/user-attachments/assets/8c975396-df4b-4cef-8954-f082acb5db51)
+![Screenshot 2024-12-19 152700](https://github.com/user-attachments/assets/394b0bb0-0b19-4170-b76f-c1a0aabda4bb)
 
 ### Step 3: Position the Window
 Windows can be moved by **Shift + Click and Drag** to the desired position. 
@@ -54,7 +56,7 @@ You can also move the window via the **Window Settings for:** menu by either cli
 ### Step 1: Open Button Configuration
 Click the **Add/Edit Buttons** tab at the top of the main window and select the desired window from the dropdown:
 
-![Add/Edit Buttons Tab](https://github.com/user-attachments/assets/1c8eba53-d2af-4220-8841-434907056999)
+![Screenshot 2024-12-19 152506](https://github.com/user-attachments/assets/67489b57-47fe-44c2-8ad5-9bfff4be6828)
 
 ### Step 2: Select Command Type
 Use the radio buttons to select the command type:
@@ -66,7 +68,7 @@ Use the radio buttons to select the command type:
 #### **Direct Command**
 Issues a single command, like a one-line macro. For example:
 
-![Direct Command Example](https://github.com/user-attachments/assets/9e825946-561b-4c1c-b1cb-ab68a6141d68)
+![Screenshot 2024-12-19 152422](https://github.com/user-attachments/assets/df5c4b10-7ab0-4e84-9344-fd68173cc99c)
 
 If using image buttons, include the path to the icon. Images must be in `/altcommand/resources/your/path/to.png`. If the path is incorrect, a fallback image will be used.
 
@@ -75,33 +77,40 @@ If using image buttons, include the path to the icon. Images must be in `/altcom
 #### **Toggle On/Off Command**
 Toggles commands with two states, such as `/ms followme` for Multisend:
 
-![Toggle Command Example](https://github.com/user-attachments/assets/6f043e17-44fc-4599-be35-7fd547e83525)
+![Screenshot 2024-12-19 153034](https://github.com/user-attachments/assets/ab013461-b81c-4759-bdcf-3be7a1808454)
 
 Using a normal button for toggle commands will display state-dependent labels. For example:
-- **Off State:** ![Off State](https://github.com/user-attachments/assets/7887a4f5-87cf-42b3-bf2e-40633d744080)
-- **On State:** ![On State](https://github.com/user-attachments/assets/96ded6ec-4648-4035-a37c-96766e5bc724)
+- **Off State:** ![Screenshot 2024-12-19 153108](https://github.com/user-attachments/assets/0d47bcd0-8e8c-4d9d-a118-d7ca5c51f8da)
+- **On State:** ![Screenshot 2024-12-19 153127](https://github.com/user-attachments/assets/6ea246d3-2a7d-4dec-a20a-0c629b6cd293)
+
+This can also be used for any 2 words your command uses to toggle:
+
+![Screenshot 2024-12-19 163533](https://github.com/user-attachments/assets/f0089a0c-85df-445e-97a1-d400b2053a17)
+
+- **Off State:** ![Screenshot 2024-12-19 163600](https://github.com/user-attachments/assets/99b621ca-81bc-41cf-ba40-1f315924c3a9)
+- **On State:** ![Screenshot 2024-12-19 163618](https://github.com/user-attachments/assets/6e67746c-61d4-4736-9f6b-aa0867e52e8a)
 
 ---
 
 #### **Command Series**
 Acts like a multi-line macro with a configurable delay (in 0.1-second increments):
 
-![Command Series Example](https://github.com/user-attachments/assets/edcf9867-cb52-48dd-9564-3f4e0f551395)
+![Screenshot 2024-12-19 164917](https://github.com/user-attachments/assets/3b032d03-01be-4dc2-aec6-03254992cea9)
 
 Each text entry creates a new blank entry below. Leave the final entry blank to signal the end of the series.
 
 ---
 
 #### **Window Toggle**
-Toggles the visibility of windows with the same name as the command:
+Toggles the visibility of windows:
 
-![Window Toggle Example](https://github.com/user-attachments/assets/31ecf945-7625-4a0e-95a9-5c27517c8804)
+![Screenshot 2024-12-19 165534](https://github.com/user-attachments/assets/017651bd-c734-4f26-9c69-014af9d51060)
 
 For example:
-- Create a window named **Jobs**.
-- Add a **Corsair** toggle button in the Jobs window.
-- Create another window named **Corsair** with specific buttons for that job.
-- Clicking the Corsair button toggles the Corsair window's visibility. You can further nest windows (e.g., Rolls, Quick Draw) within the Corsair window.
+- Create a window named **Corsair Main**.
+- Add a **Shots** toggle button in the Corsair Main window.
+- Create another window named **Shots** with all of the Quck Draw elemental shots.
+- Clicking the **Shots** button toggles the **Shots** window's visibility. You can further nest windows if desired.
 
 ---
 
@@ -110,7 +119,7 @@ For example:
 ### Editing Windows
 Window settings can be edited after creation, except for the window type (normal or image buttons). Editing options are available below the Add Button section:
 
-![Edit Window Options](https://github.com/user-attachments/assets/ea8ae00c-358d-4630-8823-f70ee7a43e77)
+![Screenshot 2024-12-19 165928](https://github.com/user-attachments/assets/2549bec5-ff5c-44b5-a4c3-58d0a69008d3)
 
 - A preview of changes is shown in the top-right.
 - Click **Save** to apply changes or **Cancel** to revert.
@@ -121,7 +130,7 @@ Window settings can be edited after creation, except for the window type (normal
 ### Editing Buttons
 Click on a button in the preview window to edit it:
 
-![Edit Button Example](https://github.com/user-attachments/assets/6ad67af3-9bad-4871-bccd-ba44fa563ac8)
+![Screenshot 2024-12-19 170241](https://github.com/user-attachments/assets/9084a3bc-8053-403e-9bb9-d25e7c58f30f)
 
 - Buttons can be moved within the current window.
 - All button settings can be changed.
@@ -138,7 +147,6 @@ Click on a button in the preview window to edit it:
 
 ## To-Do
 
-- ~~Add saving and loading of window sets per job.~~ Done
 - Create additional custom icons.
 
 ---
