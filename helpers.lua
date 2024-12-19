@@ -1,15 +1,61 @@
 local images = require("images")
 local variables = require("variables")
 local imgui = require("imgui")
-local settings = require("settings")
 
 local helpers = {}
+
+helpers.settings = {}
+
+helpers.settings.load = function(default_table, filename)
+    assert(filename ~= nil, "No filename provided to settings.load()")
+
+    local f = loadfile(filename)
+    if f ~= nil then
+        local result = f()
+        if type(result) == "table" then
+            return setmetatable(result, {__index = default_table})
+        else
+            return default_table
+        end
+    end
+    return default_table
+end
+
+local function serializeTable(t, indent)
+    indent = indent or ""
+    local nextIndent = indent .. "    "
+    local lines = {"{\n"}
+    for k, v in pairs(t) do
+        local keyStr = (type(k) == "string" and string.format("[%q]", k)) or ("["..k.."]")
+        if type(v) == "table" then
+            table.insert(lines, nextIndent .. keyStr .. " = " .. serializeTable(v, nextIndent) .. ",\n")
+        elseif type(v) == "string" then
+            table.insert(lines, nextIndent .. keyStr .. " = " .. string.format("%q", v) .. ",\n")
+        else
+            table.insert(lines, nextIndent .. keyStr .. " = " .. tostring(v) .. ",\n")
+        end
+    end
+    table.insert(lines, indent .. "}")
+    return table.concat(lines)
+end
+
+helpers.settings.save = function(data, filename)
+    assert(filename ~= nil, "No filename provided to settings.save()")
+
+    local f = io.open(filename, "w+")
+    if f ~= nil then
+        f:write("return " .. serializeTable(data))
+        f:close()
+    else
+        print(chat.header(addon.name):append(chat.error("Failed to open file for saving: " .. filename)))
+    end
+end
 
 helpers.initializeFallbackTexture = function()
     if variables.fallbackTexture then
         variables.textureCache["misc/fallback.png"] = variables.fallbackTexture
     else
-        print("Failed to load fallback texture from: " .. variables.fallbackTexturePath)
+        print(chat.header(addon.name):append(chat.error("Failed to load fallback texture from: " .. variables.fallbackTexturePath)))
     end
 end
 
@@ -29,6 +75,11 @@ helpers.fileExists = function (filePath)
     else
         return false
     end
+end
+
+helpers.windowExists = function(windowName, settings)
+    if not settings or not settings.windows then return false end
+    return settings.windows[windowName] ~= nil
 end
 
 helpers.get_game_menu_name = function ()
@@ -85,7 +136,7 @@ helpers.addTimer = function(name, delay, commands)
         commands = commands,
         delay = delay,
         start_time = start_time,
-        index = 2 -- Start with the second command, since the first is executed immediately
+        index = 2
     }
 end
 
@@ -110,7 +161,6 @@ helpers.getWindowNamesFromSettings = function(settings)
     local windowNames = {}
     local windowIndexMap = {}
 
-    -- Handle both table types and ensure windows exists
     local windows = nil
     if type(settings) == "table" then
         if type(settings.windows) == "table" then
@@ -120,31 +170,31 @@ helpers.getWindowNamesFromSettings = function(settings)
         end
     end
 
-    -- Process windows if found
     if windows then
-        -- Handle both regular tables and T{} tables
         if type(windows.it) == "function" then
-            -- It's a T{} table
             windows:each(
                 function(data, name)
                     if type(name) == "string" and name ~= "" then
                         table.insert(windowNames, name)
-                        windowIndexMap[name] = #windowNames
                     end
                 end
             )
         else
-            -- Regular Lua table
             for name, data in pairs(windows) do
                 if type(name) == "string" and name ~= "" then
                     table.insert(windowNames, name)
-                    windowIndexMap[name] = #windowNames
                 end
             end
         end
+
+        table.sort(windowNames)
+
+        for i, name in ipairs(windowNames) do
+            windowIndexMap[name] = i
+        end
     else
-        print("Windows table not found in settings")
-        print("Available keys:", table.concat(table.keys(settings or {}), ", "))
+        print(chat.header(addon.name):append(chat.error("Windows table not found in settings")))
+        print(chat.header(addon.name):append(chat.error("Available keys: " .. table.concat(table.keys(settings or {}), ", "))))
     end
 
     return windowNames, windowIndexMap
@@ -153,10 +203,8 @@ end
 helpers.cacheWindowSettings = function(windowName, userSettings)
     local window = userSettings.windows[windowName]
     if window then
-        -- Ensure window has position
         window.windowPos = window.windowPos or {x = 100, y = 100}
 
-        -- Deep copy all values to avoid reference issues
         variables.cachedSettings[windowName] = {
             windowColor = {unpack(window.windowColor or {0.078, 0.890, 0.804, 0.49})},
             buttonColor = {unpack(window.buttonColor or {0.2, 0.4, 0.8, 1.0})},
@@ -177,7 +225,6 @@ helpers.revertWindowSettings = function(windowName, userSettings)
     local cached = variables.cachedSettings[windowName]
     if cached and userSettings.windows[windowName] then
         local window = userSettings.windows[windowName]
-        -- Deep copy all values back from cache
         window.windowColor = {unpack(cached.windowColor)}
         window.buttonColor = {unpack(cached.buttonColor)}
         window.textColor = {unpack(cached.textColor)}
@@ -199,7 +246,6 @@ helpers.initializeWindowDialog = function(dialogType, windowName)
         return false
     end
 
-    -- Use provided window name or default to first window
     windowName = windowName or windowNames[1]
     if not variables.altCommand.settings.windows[windowName] then
         print(chat.header(addon.name):append(chat.error('Window "' .. windowName .. '" not found.')))
@@ -208,9 +254,7 @@ helpers.initializeWindowDialog = function(dialogType, windowName)
 
     local window = variables.altCommand.settings.windows[windowName]
 
-    -- New Window
     if dialogType == "new" then
-        -- Initialize new window dialog
         variables.newWindowDialog.isVisible = true
         variables.newWindowDialog.windowName = {""}
         variables.newWindowDialog.windowColor = {0.078, 0.890, 0.804, 0.49}
@@ -228,7 +272,6 @@ helpers.initializeWindowDialog = function(dialogType, windowName)
             imageButtonHeight = {40}
         }
 
-        -- Cache preview texture if not already cached
         local previewTexturePath = "misc/preview.png"
         if not variables.textureCache[previewTexturePath] then
             local fullTexturePath = addon.path .. "/resources/" .. previewTexturePath
@@ -246,7 +289,6 @@ helpers.initializeWindowDialog = function(dialogType, windowName)
     end
 
     if dialogType == "add" then
-        -- Initialize add dialog
         variables.addButtonDialog.isVisible = true
         variables.addButtonDialog.selectedWindow = windowName
         variables.addButtonDialog.selectedWindowIndex = {1}
@@ -256,7 +298,6 @@ helpers.initializeWindowDialog = function(dialogType, windowName)
         variables.addButtonDialog.previewTexture = nil
     end
 
-    -- Cache window settings
     helpers.cacheWindowSettings(windowName, userSettings)
     return true
 end
@@ -270,7 +311,6 @@ helpers.loadSelectedCommandFields = function(selectedWindow)
     local totalExisting = #selectedWindow.commands
     if idx <= totalExisting then
         local command = selectedWindow.commands[idx]
-        -- Load command fields
         variables.editCommandName = {command.text or ""}
         variables.editCommandType = {command.commandType or "isDirect"}
         variables.editCommandText = {command.command or ""}
@@ -280,14 +320,12 @@ helpers.loadSelectedCommandFields = function(selectedWindow)
         variables.editWindowToggleName = {command.windowToggleName or ""}
         variables.editTexturePath = {command.image or ""}
 
-        -- Handle series commands
         variables.editSeriesCommandInputs = {{""}}
         if command.seriesCommands then
             variables.editSeriesCommandInputs = {}
             for cmd in command.seriesCommands:gmatch("[^,]+") do
                 table.insert(variables.editSeriesCommandInputs, {cmd:trim()})
             end
-            -- Add empty input at end
             table.insert(variables.editSeriesCommandInputs, {""})
         end
     end
@@ -302,7 +340,6 @@ helpers.saveSelectedCommandChanges = function(selectedWindow)
     local totalExisting = #selectedWindow.commands
     if idx <= totalExisting then
         local command = selectedWindow.commands[idx]
-        -- Save command fields
         command.text = variables.editCommandName[1]
         command.commandType = variables.editCommandType[1]
         command.command = (variables.editCommandType[1] == "isDirect") and variables.editCommandText[1] or nil
@@ -311,7 +348,6 @@ helpers.saveSelectedCommandChanges = function(selectedWindow)
         command.windowToggleName = (variables.editCommandType[1] == "isWindow") and variables.editWindowToggleName[1] or nil
         command.image = selectedWindow.type == "imgbutton" and variables.editTexturePath[1] or nil
 
-        -- Handle series commands
         if variables.editCommandType[1] == "isSeries" then
             local nonEmptyCommands = {}
             for _, cmd in ipairs(variables.editSeriesCommandInputs) do
@@ -326,7 +362,7 @@ helpers.saveSelectedCommandChanges = function(selectedWindow)
             command.seriesDelay = nil
         end
     end
-    settings.save()
+    helpers.settings.save(variables.altCommand.settings, variables.jobSettingsPath)
 end
 
 helpers.ensureNewWindowDefaults = function()
@@ -375,6 +411,19 @@ helpers.ensureNormalButtonDefaults = function()
     variables.newWindowDialog.previewWindow.buttonHeight = variables.newWindowDialog.previewWindow.buttonHeight or {22}
     variables.newWindowDialog.previewWindow.buttonWidth[1] = math.max(1, tonumber(variables.newWindowDialog.previewWindow.buttonWidth[1]) or 105)
     variables.newWindowDialog.previewWindow.buttonHeight[1] = math.max(1, tonumber(variables.newWindowDialog.previewWindow.buttonHeight[1]) or 22)
+end
+
+helpers.clearAddButtonDialog = function()
+    variables.addButtonDialog.commandName = {""}
+    variables.addButtonDialog.commandType = {"isDirect"}
+    variables.addButtonDialog.commandText = {""}
+    variables.addButtonDialog.toggleCommand = {""}
+    variables.addButtonDialog.toggleWords = {""}
+    variables.addButtonDialog.seriesCommands = {""}
+    variables.addButtonDialog.seriesCommandInputs = {{""}}
+    variables.addButtonDialog.seriesDelay = {1.0}
+    variables.addButtonDialog.windowToggleName = {""}
+    variables.addButtonDialog.texturePath = {""}
 end
 
 return helpers

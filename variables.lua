@@ -1,5 +1,4 @@
 local images = require("images")
-local settings = require("settings")
 
 local variables = {}
 
@@ -25,6 +24,8 @@ variables.pGameMenu = ashita.memory.find("FFXiMain.dll", 0, "8B480C85C974??8B510
 variables.pInterfaceHidden = ashita.memory.find("FFXiMain.dll", 0, "8B4424046A016A0050B9????????E8????????F6D81BC040C3", 0, 0)
 variables.pEventSystem = ashita.memory.find("FFXiMain.dll", 0, "A0????????84C0741AA1????????85C0741166A1????????663B05????????0F94C0C3", 0, 0)
 variables.pChatExpanded = ashita.memory.find("FFXiMain.dll", 0, "83EC??B9????????E8????????0FBF4C24??84C0", 0x04, 0)
+variables.currentJob = nil
+variables.jobSettingsPath = nil
 
 variables.flags = {
     no_move = ImGuiWindowFlags_NoMove,
@@ -33,7 +34,6 @@ variables.flags = {
     no_scroll = ImGuiWindowFlags_NoScrollbar,
     no_scroll_mouse = ImGuiWindowFlags_NoScrollWithMouse
 }
-
 
 variables.defines = {
     menus = {
@@ -51,7 +51,7 @@ variables.defaultWindow = {
             command = "/altc help"
         }
     },
-    windowPos = {x = 100, y = 100},
+    windowPos = {x = 900, y = 550},
     isDraggable = false,
     isVisible = true,
     windowColor = {0.016, 0.055, 0.051, 0.49},
@@ -71,9 +71,33 @@ variables.default_settings =
     windows = T {}
 }
 
-variables.altCommand =
-    T {
-    settings = settings.load(variables.default_settings)
+variables.jobMapping = {
+    [1] = "WAR",
+    [2] = "MNK",
+    [3] = "WHM",
+    [4] = "BLM",
+    [5] = "RDM",
+    [6] = "THF",
+    [7] = "PLD",
+    [8] = "DRK",
+    [9] = "BST",
+    [10] = "BRD",
+    [11] = "RNG",
+    [12] = "SAM",
+    [13] = "NIN",
+    [14] = "DRG",
+    [15] = "SMN",
+    [16] = "BLU",
+    [17] = "COR",
+    [18] = "PUP",
+    [19] = "DNC",
+    [20] = "SCH",
+    [21] = "GEO",
+    [22] = "RUN"
+}
+
+variables.altCommand = T {
+    settings = T {}
 }
 
 variables.newWindowDialog = {
